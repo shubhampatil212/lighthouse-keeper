@@ -1,0 +1,7 @@
+dist
+node_modules
+public/fonts
+reference
+package-lock.json
+# Owner-written docs and prompts keep their own formatting.
+*.md

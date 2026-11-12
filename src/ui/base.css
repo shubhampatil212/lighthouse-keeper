@@ -1,0 +1,69 @@
+/* Page layout: a full-screen canvas with DOM overlays above it. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--ui-page);
+  color: var(--ui-text);
+  font-family: var(--font-ui);
+  /* No double-tap zoom; pinch-zoom on menus is left to the browser. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+#stage canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+
+#fade {
+  position: fixed;
+  inset: 0;
+  background: var(--sea-deep);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.boot-error {
+  position: fixed;
+  inset: auto 16px 50% 16px;
+  margin: 0;
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.debug-overlay {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: calc(env(safe-area-inset-left, 0px) + 6px);
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffb4b4;
+  font:
+    11px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  pointer-events: none;
+  white-space: pre;
+}
