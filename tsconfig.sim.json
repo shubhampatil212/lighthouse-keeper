@@ -1,0 +1,9 @@
+{
+  "//": "Architecture rule 1: the simulation and its data compile without any DOM or browser types.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src/sim", "src/data"]
+}

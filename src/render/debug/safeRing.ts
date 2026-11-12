@@ -1,7 +1,7 @@
 /** Debug drawing, shown only with ?debug in the URL: the 230-unit safe circle that must stay on screen. */
 import { Graphics } from 'pixi.js';
-import type { Viewport } from '../app/viewport';
-import type { ViewportConfig } from '../data/types';
+import type { Viewport } from '../../app/viewport';
+import type { ViewportConfig } from '../../data/types';
 
 export function createSafeRing(): Graphics {
   return new Graphics({ label: 'safeRing' });

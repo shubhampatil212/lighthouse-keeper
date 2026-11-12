@@ -1,0 +1,83 @@
+/* Developer panel (toggle with the ` key, or open with ?debug). Not part of the game's look. */
+
+.debug-panel {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: calc(env(safe-area-inset-left, 0px) + 6px);
+  z-index: 20;
+  width: min(300px, calc(100vw - 12px));
+  max-height: calc(100vh - 12px);
+  overflow: auto;
+  padding: 8px 10px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffd2d2;
+  font:
+    12px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+
+.debug-panel[hidden],
+.debug-opener[hidden] {
+  display: none;
+}
+
+.debug-opener {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: calc(env(safe-area-inset-left, 0px) + 6px);
+  z-index: 20;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 180, 180, 0.35);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffd2d2;
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  cursor: pointer;
+}
+
+.debug-panel pre {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.debug-panel fieldset {
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.debug-panel legend {
+  padding: 0 0 2px;
+  color: #ffb4b4;
+}
+
+.debug-panel label,
+.debug-panel button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 180, 180, 0.35);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.debug-panel input {
+  margin: 0;
+}

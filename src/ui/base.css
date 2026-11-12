@@ -49,21 +49,3 @@ body {
   text-align: center;
   font-size: 1.1rem;
 }
-
-.debug-overlay {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 6px);
-  left: calc(env(safe-area-inset-left, 0px) + 6px);
-  margin: 0;
-  padding: 6px 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #ffb4b4;
-  font:
-    11px/1.4 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  pointer-events: none;
-  white-space: pre;
-}

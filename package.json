@@ -13,7 +13,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sim.json",
     "format": "prettier --write ."
   },
   "dependencies": {

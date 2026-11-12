@@ -12,7 +12,7 @@ import { applyViewport, createLayers } from './render/layers';
 import { PALETTE } from './render/palette';
 import { SCENE } from './scenes';
 import { createPlayScene } from './scenes/play';
-import { createDebugOverlay } from './ui/debugOverlay';
+import { createDebugPanel } from './ui/debugPanel';
 import { STRINGS } from './ui/strings';
 
 function requireElement(id: string): HTMLElement {
@@ -24,8 +24,9 @@ function requireElement(id: string): HTMLElement {
 async function boot(): Promise<void> {
   const host = requireElement('stage');
   const fade = requireElement('fade');
-  const debug = new URLSearchParams(location.search).has('debug');
-  const debugOverlay = debug ? createDebugOverlay(document.body) : null;
+  const params = new URLSearchParams(location.search);
+  const debug = params.has('debug');
+  const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
 
   const app = new Application();
   let onViewport: (vp: Viewport) => void = () => undefined;
@@ -48,20 +49,37 @@ async function boot(): Promise<void> {
   app.canvas.setAttribute('aria-label', STRINGS.canvasLabel);
   app.canvas.setAttribute('role', 'img');
   host.appendChild(app.canvas);
-  debugOverlay?.setRenderer(app.renderer.name);
 
   const layers = createLayers(app.stage);
   const scenes = createSceneManager(
     createFadeTransition(fade, SCENE_TRANSITION.fadeMs),
     () => viewport.current,
   );
-  scenes.register(SCENE.play, createPlayScene({ layers, showSafeRing: debug }));
+  const play = createPlayScene({
+    layers,
+    canvas: app.canvas,
+    uiRoot: document.body,
+    viewport: () => viewport.current,
+    showSafeRing: debug,
+    seed: Number.isFinite(seedParam) ? seedParam >>> 0 : null,
+  });
+  const debugPanel = createDebugPanel(document.body, debug, {
+    onChange: (settings) => {
+      play.applySettings(settings);
+    },
+    onRestart: (newSeed) => {
+      play.restart(newSeed);
+    },
+  });
+  debugPanel.setRenderer(app.renderer.name);
+  play.attachDebugPanel(debugPanel);
+  scenes.register(SCENE.play, play);
 
   onViewport = (vp) => {
     app.renderer.resize(vp.width, vp.height, vp.resolution);
     applyViewport(layers, vp);
     scenes.resize(vp);
-    debugOverlay?.setViewport(vp);
+    debugPanel.setViewport(vp);
   };
   onViewport(first);
 
@@ -72,7 +90,7 @@ async function boot(): Promise<void> {
     render: (alpha) => {
       scenes.render(alpha);
       app.renderer.render(app.stage);
-      debugOverlay?.frame(performance.now());
+      debugPanel.frame(performance.now());
     },
   }).start();
 

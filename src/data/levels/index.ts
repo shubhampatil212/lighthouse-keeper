@@ -1,2 +1,10 @@
-/** Campaign and endless level files (docs/CONTENT.md §6). Filled from phase 02 onward. */
-export {};
+/** Campaign and endless level files (docs/CONTENT.md §6). */
+import type { LevelDef } from '../types';
+import { LEVEL_1_2 } from './1-2';
+
+export { LEVEL_1_2 };
+
+/** Every playable level, by id. */
+export const LEVELS: Readonly<Record<string, LevelDef>> = {
+  [LEVEL_1_2.id]: LEVEL_1_2,
+};

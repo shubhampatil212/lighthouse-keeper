@@ -28,8 +28,8 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
-    // Architecture rule 1: the simulation is pure and deterministic.
-    files: ['src/sim/**/*.ts'],
+    // Architecture rule 1: the simulation (and the data it reads) is pure and deterministic.
+    files: ['src/sim/**/*.ts', 'src/data/**/*.ts'],
     rules: {
       'no-restricted-properties': [
         'error',
@@ -43,13 +43,26 @@ export default tseslint.config(
       'no-restricted-globals': [
         'error',
         { name: 'Date', message: 'The simulation gets time only from step(dt).' },
+        { name: 'performance', message: 'The simulation gets time only from step(dt).' },
+        { name: 'setTimeout', message: 'The simulation gets time only from step(dt).' },
+        { name: 'setInterval', message: 'The simulation gets time only from step(dt).' },
+        { name: 'requestAnimationFrame', message: 'The game loop lives in src/app.' },
         { name: 'window', message: 'No DOM in src/sim.' },
         { name: 'document', message: 'No DOM in src/sim.' },
+        { name: 'navigator', message: 'No DOM in src/sim.' },
         { name: 'localStorage', message: 'Saving lives in src/save.' },
       ],
       'no-restricted-imports': [
         'error',
-        { patterns: [{ group: ['pixi.js', 'pixi.js/*'], message: 'No rendering in src/sim.' }] },
+        {
+          patterns: [
+            { group: ['pixi.js', 'pixi.js/*'], message: 'No rendering in src/sim.' },
+            {
+              regex: '(^|/)(app|audio|input|render|save|scenes|ui)(/|$)',
+              message: 'The simulation may only import from src/sim and src/data.',
+            },
+          ],
+        },
       ],
     },
   },

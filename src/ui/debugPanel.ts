@@ -1,0 +1,202 @@
+/**
+ * Developer panel: frame rate, tick count, ships, seed and viewport, plus switches for "reveal all",
+ * the control style, the difficulty and restarting. Toggle with the ` key; ?debug opens it at start.
+ * It's a developer tool, so its labels aren't in strings.ts and it reads the world directly.
+ */
+import './debugPanel.css';
+import type { Viewport } from '../app/viewport';
+import type { ControlStyle, DifficultyId } from '../data/types';
+import type { World } from '../sim/world';
+
+export interface DebugSettings {
+  revealAll: boolean;
+  style: ControlStyle;
+  difficulty: DifficultyId;
+}
+
+export interface DebugPanelHandlers {
+  onChange(settings: DebugSettings): void;
+  onRestart(newSeed: boolean): void;
+}
+
+export interface DebugPanel {
+  frame(now: number): void;
+  setRenderer(name: string): void;
+  setViewport(vp: Viewport): void;
+  showWorld(world: World, paused: boolean): void;
+  setSettings(settings: DebugSettings): void;
+  readonly open: boolean;
+}
+
+const REPAINT_MS = 250;
+const DIFFICULTY_IDS: readonly DifficultyId[] = ['calm', 'keeper', 'storm'];
+const STYLES: readonly [ControlStyle, string][] = [
+  ['follow', 'Follow finger'],
+  ['drag', 'Drag to rotate'],
+];
+
+function radioGroup<T extends string>(
+  legend: string,
+  name: string,
+  options: readonly (readonly [T, string])[],
+  onPick: (value: T) => void,
+): { element: HTMLFieldSetElement; set(value: T): void } {
+  const element = document.createElement('fieldset');
+  element.append(Object.assign(document.createElement('legend'), { textContent: legend }));
+  const inputs = options.map(([value, text]) => {
+    const input = Object.assign(document.createElement('input'), { type: 'radio', name, value });
+    input.addEventListener('change', () => {
+      if (input.checked) onPick(value);
+    });
+    const label = document.createElement('label');
+    label.append(input, text);
+    element.append(label);
+    return input;
+  });
+  return {
+    element,
+    set(value) {
+      for (const input of inputs) input.checked = input.value === value;
+    },
+  };
+}
+
+export function createDebugPanel(
+  parent: HTMLElement,
+  startOpen: boolean,
+  handlers: DebugPanelHandlers,
+): DebugPanel {
+  const root = document.createElement('section');
+  root.className = 'debug-panel';
+  root.hidden = !startOpen;
+  root.setAttribute('aria-label', 'Debug panel');
+  const readout = document.createElement('pre');
+
+  let settings: DebugSettings = { revealAll: false, style: 'follow', difficulty: 'keeper' };
+  const change = (next: Partial<DebugSettings>): void => {
+    settings = { ...settings, ...next };
+    handlers.onChange(settings);
+  };
+
+  const reveal = Object.assign(document.createElement('input'), { type: 'checkbox' });
+  reveal.addEventListener('change', () => {
+    change({ revealAll: reveal.checked });
+  });
+  const revealLabel = document.createElement('label');
+  revealLabel.append(reveal, 'Reveal all');
+  const view = document.createElement('fieldset');
+  view.append(revealLabel);
+
+  const style = radioGroup('Controls', 'debug-style', STYLES, (value) => {
+    change({ style: value });
+  });
+  const difficulty = radioGroup(
+    'Difficulty (restarts)',
+    'debug-difficulty',
+    DIFFICULTY_IDS.map((id) => [id, id] as const),
+    (value) => {
+      change({ difficulty: value });
+    },
+  );
+
+  const restart = document.createElement('fieldset');
+  for (const [text, newSeed] of [
+    ['Restart same seed', false],
+    ['New seed', true],
+  ] as const) {
+    const button = Object.assign(document.createElement('button'), {
+      type: 'button',
+      textContent: text,
+    });
+    button.addEventListener('click', () => {
+      handlers.onRestart(newSeed);
+    });
+    restart.append(button);
+  }
+
+  // Phones have no ` key: a button hides the panel, leaving a small tab to bring it back.
+  const hide = Object.assign(document.createElement('button'), {
+    type: 'button',
+    textContent: 'Hide panel',
+  });
+  const opener = Object.assign(document.createElement('button'), {
+    type: 'button',
+    className: 'debug-opener',
+    textContent: 'Debug',
+  });
+  opener.hidden = true;
+  let isOpen = startOpen;
+  const show = (open: boolean): void => {
+    isOpen = open;
+    root.hidden = !open;
+    opener.hidden = open;
+  };
+  hide.addEventListener('click', () => {
+    show(false);
+  });
+  opener.addEventListener('click', () => {
+    show(true);
+  });
+  restart.append(hide);
+
+  root.append(readout, view, style.element, difficulty.element, restart);
+  parent.append(root, opener);
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === '`') show(!isOpen);
+  });
+
+  let renderer = '';
+  let viewportText = '';
+  let worldText = '';
+  let frames = 0;
+  let since = 0;
+  let fps = 0;
+  let lastPaint = 0;
+
+  const paint = (): void => {
+    readout.textContent = `${renderer}  ${fps} fps\n${worldText}\n${viewportText}`;
+  };
+
+  return {
+    frame(now) {
+      frames++;
+      if (now - since >= 1000) {
+        fps = Math.round((frames * 1000) / (now - since));
+        frames = 0;
+        since = now;
+      }
+      if (isOpen && now - lastPaint >= REPAINT_MS) {
+        lastPaint = now;
+        paint();
+      }
+    },
+    setRenderer(name) {
+      renderer = name;
+    },
+    setViewport(vp) {
+      const i = vp.insets;
+      viewportText =
+        `${vp.width}×${vp.height} css px @${vp.resolution}x  S=${vp.scale.toFixed(3)}\n` +
+        `safe insets ${i.top} ${i.right} ${i.bottom} ${i.left}`;
+    },
+    showWorld(world, paused) {
+      const { state, setup } = world;
+      const status = paused ? 'paused' : state.status;
+      worldText =
+        `level ${setup.level.id} · ${setup.difficultyId} · seed ${state.seed}\n` +
+        `tick ${state.tick} · ${state.time.toFixed(1)} s · ${status}\n` +
+        `ships: ${state.ships.length} at sea · ${state.spawnIndex}/${setup.spawns.length} spawned\n` +
+        `saved ${state.saved} · wrecked ${state.wrecked}/${setup.difficulty.wreckAllowance} · coins ${state.coins}`;
+    },
+    setSettings(next) {
+      settings = next;
+      reveal.checked = next.revealAll;
+      style.set(next.style);
+      difficulty.set(next.difficulty);
+    },
+    get open() {
+      return isOpen;
+    },
+  };
+}

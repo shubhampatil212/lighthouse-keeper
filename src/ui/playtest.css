@@ -1,0 +1,71 @@
+/* Temporary play-test HUD and end card (phase 02). The real screens replace these in phase 05. */
+
+.playtest-hud {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 14px);
+  margin: 0;
+  text-align: right;
+  color: var(--ui-text);
+  font: 0.95rem/1.35 var(--font-ui);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.playtest-hud strong {
+  display: block;
+  font: 1.2rem/1.1 var(--font-title);
+  font-weight: 400;
+}
+
+.end-card {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100vw - 32px), 380px);
+  padding: 24px 22px 20px;
+  border: 1px solid var(--ui-panel-line);
+  border-radius: 18px;
+  background: var(--ui-panel);
+  color: var(--ui-text);
+}
+
+.end-card[hidden] {
+  display: none;
+}
+
+.end-card h2 {
+  margin: 0 0 8px;
+  font: 1.9rem/1.05 var(--font-title);
+  font-weight: 400;
+}
+
+.end-card p {
+  margin: 0 0 12px;
+  color: var(--ui-text-soft);
+  line-height: 1.5;
+}
+
+.end-card .stars {
+  color: var(--ui-accent);
+  font-size: 1.6rem;
+  letter-spacing: 4px;
+}
+
+.end-card button {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--ui-accent);
+  color: var(--ui-accent-text);
+  font: 700 1.05rem var(--font-ui);
+  cursor: pointer;
+}
+
+.end-card button:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}
