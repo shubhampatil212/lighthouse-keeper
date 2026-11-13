@@ -43,7 +43,7 @@ test('the debug panel opens with ` and the night runs without console errors', a
   // Ships spawn from 1.5 s in; let a couple of seconds of the night play.
   await page.waitForTimeout(2500);
   await expect(panel).toContainText(/ships: [1-9] at sea/);
-  await expect(page.locator('.playtest-hud')).toContainText('The cargo run');
+  await expect(page.locator('.hud')).toContainText('The cargo run');
 
   // Phones have no ` key, so the panel can hide itself and come back from a small tab.
   await page.getByRole('button', { name: 'Hide panel' }).click();

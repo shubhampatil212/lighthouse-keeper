@@ -1,0 +1,207 @@
+/* Play HUD (docs/SCREENS.md "Play"): top bars, thumb-zone abilities, prompts. */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(env(safe-area-inset-right, 0px) + 10px)
+    calc(env(safe-area-inset-bottom, 0px) + 12px) calc(env(safe-area-inset-left, 0px) + 10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.hud button {
+  pointer-events: auto;
+}
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.hud-level {
+  min-width: 0;
+  max-width: 55%;
+}
+
+.hud-level__title {
+  margin: 0 0 6px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-level__code {
+  color: var(--lamp);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.hud-level__name {
+  font: 400 1.15rem/1.1 var(--font-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hud-progress {
+  display: block;
+  width: min(160px, 40vw);
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.hud-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--lamp);
+  transform-origin: left;
+  transition: transform 400ms ease;
+}
+
+.hud-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hud-count svg {
+  width: 18px;
+  height: 18px;
+  color: var(--sea-crest);
+}
+
+.hud-caught {
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
+.hud-hulls {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.hud-hull svg {
+  width: 18px;
+  height: 18px;
+  color: var(--lamp-hot);
+}
+
+.hud-hull.is-lost svg {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.hud-pause {
+  background: rgba(9, 28, 36, 0.55);
+}
+
+/* Prompts: bottom centre, above the abilities, clear of the island. */
+.hud-prompt {
+  align-self: center;
+  max-width: min(360px, 86vw);
+  margin: 0 0 12px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(9, 28, 36, 0.82);
+  border: 1px solid var(--ui-panel-line);
+  text-align: center;
+  line-height: 1.35;
+  margin-top: auto;
+  animation: fade-in var(--ease-slow);
+}
+
+/* Abilities: bottom right for right thumbs, mirrored for left. */
+.hud-abilities {
+  display: flex;
+  gap: 14px;
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.hud.is-left-handed .hud-abilities {
+  align-self: flex-start;
+  flex-direction: row;
+}
+
+.hud-ability {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1px solid var(--ui-panel-line);
+  background: rgba(9, 28, 36, 0.72);
+  color: var(--lamp-hot);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.hud-ability[hidden] {
+  display: none;
+}
+
+.hud-ability > svg:not(.ui-ring) {
+  width: 28px;
+  height: 28px;
+}
+
+.hud-ability.is-cooling {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.hud-ability__badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  background: var(--sea-deep);
+  border: 1px solid var(--ui-panel-line);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--ui-text);
+}
+
+.hud-ability__badge:empty {
+  display: none;
+}
+
+/* Pause: the night stays visible, frozen and dimmed. */
+.pause-overlay {
+  background: rgba(4, 14, 18, 0.62);
+  backdrop-filter: blur(2px);
+}
+
+.pause-menu {
+  width: min(100%, 320px);
+}
+
+.ui-modal__box--wide {
+  width: min(100%, var(--menu-width));
+}
+
+.menu-stack {
+  display: grid;
+  gap: 10px;
+}

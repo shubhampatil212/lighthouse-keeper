@@ -1,128 +1,82 @@
 /**
- * The play scene: one night of level 1-2.
- * Each tick: read the player's intents, step the world, hand its events to drawing and UI.
+ * The play scene: one night. Each tick: read the player's intents, step the world, and hand its
+ * events to drawing, the HUD's prompts and the night log. When the night ends it reports to the
+ * game (which opens Results); back or Esc opens Pause.
  */
-import type { Renderer as PixiRenderer } from 'pixi.js';
-import type { Scene } from '../app/sceneManager';
 import type { Viewport } from '../app/viewport';
 import {
+  ABILITIES,
   CONTROLS,
   ISLAND_BUILDINGS,
   NO_UPGRADES,
   PLAY,
-  REGIONS,
   SHIP_TYPES,
   VIEWPORT,
-  WEATHER_PRESETS,
 } from '../data';
-import type {
-  IslandBuildingId,
-  LevelDef,
-  QualityProfile,
-  RegionId,
-  Upgrades,
-  WeatherDef,
-} from '../data/types';
-import {
-  createInputController,
-  type ActionIntent,
-  type InputController,
-} from '../input/controller';
-import type { ArtProvider } from '../render/art/types';
+import type { LevelDef, Upgrades } from '../data/types';
+import { createInputController, type InputController } from '../input/controller';
 import { createSafeRing, drawSafeRing } from '../render/debug/safeRing';
-import type { Layers } from '../render/layers';
 import { createNightRenderer, type NightRenderer } from '../render/Renderer';
+import { foghornCooldown } from '../sim/abilities';
 import { createWorld, type World } from '../sim/world';
-import type { DebugPanel, DebugSettings } from '../ui/debugPanel';
-import { createPlaytestUi } from '../ui/playtest';
+import type { DebugPanel } from '../ui/debugPanel';
+import { createHud } from '../ui/hud';
+import { createPauseMenu } from '../ui/pauseMenu';
+import { STRINGS } from '../ui/strings';
+import { createNightLog, type NightLog } from './nightLog';
+import type { PlayScene, PlaySceneOptions } from './playTypes';
+import { regionFor, weatherFor } from './playLook';
+import { createPlayHints } from './playHints';
 
-export interface PlaySceneOptions {
-  /** The night to play. */
-  level: LevelDef;
-  /** Upgrades the keeper brings (the shop arrives in phase 05; the sandbox sets them by hand). */
-  upgrades?: Upgrades;
-  /** The night never ends on its own (the sandbox). */
-  endless?: boolean;
-  layers: Layers;
-  pixi: PixiRenderer;
-  art: ArtProvider;
-  canvas: HTMLCanvasElement;
-  uiRoot: HTMLElement;
-  viewport: () => Viewport;
-  showSafeRing: boolean;
-  /** Seed for the first night (from ?seed=), or null for a random one. */
-  seed: number | null;
-  /** Debug settings to start with (from the address). */
-  settings: DebugSettings;
-  quality: QualityProfile;
-  /** Island buildings earned so far (campaign progress arrives in phase 06). */
-  buildings: readonly IslandBuildingId[];
-  reducedMotion: boolean;
-}
-
-export interface PlayScene extends Scene {
-  readonly settings: DebugSettings;
-  applySettings(settings: DebugSettings): void;
-  setQuality(profile: QualityProfile): void;
-  /** Starts the night again, with the same seed or a new one. */
-  restart(newSeed: boolean): void;
-  /** The night being played (the sandbox adds ships and hazards to it). */
-  readonly world: World;
-  /** Plays a different level or upgrades from the start (the sandbox). */
-  load(level: LevelDef, upgrades: Upgrades): void;
-  /** Simulation steps per real step: 0.25 = slow motion, 4 = fast forward (the sandbox). */
-  timeScale: number;
-  /** An on-screen ability button was pressed. */
-  press(action: ActionIntent): void;
-  attachDebugPanel(panel: DebugPanel): void;
-}
+export type { PlayHooks, PlayPrefs, PlayScene, PlaySceneOptions } from './playTypes';
 
 const NO_ACTIONS = { foghorn: false, flare: false, switchLamp: false };
 
 /** A fresh seed for a new attempt. Randomness is fine here: the simulation only ever sees the seed. */
 const randomSeed = (): number => Math.floor(Math.random() * 0x100000000);
 
-function regionFor(level: LevelDef, settings: DebugSettings): RegionId {
-  return settings.region === 'level' ? level.region : settings.region;
-}
-
-function weatherFor(level: LevelDef, settings: DebugSettings): WeatherDef {
-  if (settings.weather !== 'level') return WEATHER_PRESETS[settings.weather];
-  const region = regionFor(level, settings);
-  return region === level.region && level.weather ? level.weather : REGIONS[region].weather;
-}
-
 export function createPlayScene(options: PlaySceneOptions): PlayScene {
-  const { layers } = options;
-  let level: LevelDef = options.level;
+  const { layers, hooks } = options;
+  let level = options.level;
   let upgrades: Upgrades = options.upgrades ?? NO_UPGRADES;
+  let prefs = options.prefs;
   const worldOptions = { endless: options.endless ?? false };
   const safeRing = options.showSafeRing ? createSafeRing() : null;
-  const ui = createPlaytestUi(
-    options.uiRoot,
+  const hud = createHud(
     () => {
+      setPaused(true);
+    },
+    (action) => input?.press(action),
+  );
+  const pause = createPauseMenu(options.uiRoot, {
+    resume: () => {
+      setPaused(false);
+    },
+    restart: () => {
       restart(true);
     },
-    (action) => {
-      input?.press(action);
-    },
-  );
-  ui.setLevel(level);
+    quit: () => hooks?.onQuit(),
+    settingsPanel: () => hooks?.settingsPanel() ?? document.createElement('div'),
+  });
+  const hints = createPlayHints(() => prefs.tutorialPrompts);
 
-  let settings: DebugSettings = options.settings;
+  let settings = options.settings;
   let quality = options.quality;
   let seed = options.seed ?? randomSeed();
   let world: World = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
+  let log: NightLog = createNightLog(1 / 60);
   let view: NightRenderer | null = null;
   let input: InputController | null = null;
   let debugPanel: DebugPanel | null = null;
   let viewport: Viewport | null = null;
   let paused = false;
-  let endCardIn: number | null = null;
+  let endIn: number | null = null;
   let lastFrame: number | null = null;
   let timeScale = 1;
   let stepDebt = 0;
   let held = { ...NO_ACTIONS };
+  /** The first night keeps ?seed= from the address; every later one gets a fresh seed. */
+  let firstNight = true;
 
   /** Where the lamp the player steers stands on screen: the pointer aims around it. */
   const aimCenter = (): { centerX: number; centerY: number } => {
@@ -137,20 +91,46 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     if (!view) return;
     view.setRegion(regionFor(level, settings));
     view.setWeather(weatherFor(level, settings));
-    view.setBuildings(settings.allBuildings ? ISLAND_BUILDINGS : options.buildings);
+    view.setBuildings(settings.allBuildings ? ISLAND_BUILDINGS : prefs.buildings);
     view.setParade(settings.parade);
     view.setRevealAll(settings.revealAll);
     view.setColorblind(settings.colorblind);
+    view.setReducedMotion(prefs.reducedMotion || !prefs.screenShake);
+    hud.setLeftHanded(prefs.leftHanded);
   };
+
+  const fitArrows = (): void => {
+    const { top, bottom } = hud.insets();
+    view?.setHudInsets(top, bottom);
+  };
+
+  function setPaused(on: boolean): void {
+    if (on && world.state.status !== 'playing') return;
+    paused = on;
+    if (!hooks) return;
+    if (on) pause.show();
+    else pause.hide();
+  }
 
   function restart(newSeed: boolean): void {
     if (newSeed) seed = randomSeed();
     world = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
-    paused = false;
-    endCardIn = null;
-    ui.hideEnd();
+    log = createNightLog(1 / 60);
+    hints.clear();
+    hud.prompt(null);
+    setPaused(false);
+    endIn = null;
     view?.setNight(world);
   }
+
+  const load = (nextLevel: LevelDef, nextUpgrades: Upgrades): void => {
+    level = nextLevel;
+    upgrades = nextUpgrades;
+    hud.setLevel(nextLevel.id, nextLevel.name);
+    applyLook();
+    restart(false);
+  };
+  hud.setLevel(level.id, level.name);
 
   return {
     get settings() {
@@ -163,6 +143,10 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       applyLook();
       if (restartNeeded) restart(false);
     },
+    applyPrefs(next) {
+      prefs = next;
+      applyLook();
+    },
     setQuality(profile) {
       quality = profile;
       view?.setQuality(profile);
@@ -171,13 +155,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     get world() {
       return world;
     },
-    load(nextLevel, nextUpgrades) {
-      level = nextLevel;
-      upgrades = nextUpgrades;
-      ui.setLevel(level);
-      applyLook();
-      restart(false);
-    },
+    load,
     get timeScale() {
       return timeScale;
     },
@@ -191,23 +169,37 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       debugPanel = panel;
       panel.setSettings(settings);
     },
-    enter() {
+    enter(params) {
+      options.backdrop?.hide();
+      if (params.level) {
+        level = params.level as LevelDef;
+        upgrades = (params.upgrades as Upgrades | undefined) ?? NO_UPGRADES;
+        hud.setLevel(level.id, level.name);
+      }
       view = createNightRenderer(options.pixi, layers, options.art, SHIP_TYPES);
       view.setQuality(quality);
-      view.setReducedMotion(options.reducedMotion);
       if (viewport) view.resize(viewport);
       applyLook();
-      restart(false);
+      restart(!firstNight || options.seed === null);
+      firstNight = false;
+      options.uiRoot.append(hud.element);
+      requestAnimationFrame(fitArrows);
       if (safeRing) layers.effects.addChild(safeRing);
       input = createInputController(options.canvas, window, aimCenter, CONTROLS);
       input.style = settings.style;
     },
     exit() {
+      pause.hide();
+      hud.element.remove();
       view?.destroy();
       view = null;
       safeRing?.removeFromParent();
       input?.dispose();
       input = null;
+    },
+    back() {
+      setPaused(world.state.status === 'playing' && !paused);
+      return true;
     },
     update(dt) {
       if (!input) return;
@@ -220,7 +212,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
         flare: read.flare || held.flare,
         switchLamp: read.switchLamp || held.switchLamp,
       };
-      if (intents.pause && (paused || world.state.status === 'playing')) paused = !paused;
+      if (intents.pause) setPaused(!paused);
       if (paused) return;
 
       // Slow motion and fast forward (sandbox): run 0..n fixed steps for each real one.
@@ -234,14 +226,18 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
         first = false;
         for (const event of world.drainEvents()) {
           view?.onEvent(event, world);
-          if (event.type === 'levelEnded') endCardIn = PLAY.endCardDelay;
+          log.onEvent(event);
+          hints.onEvent(event);
+          if (event.type === 'levelEnded') endIn = PLAY.endCardDelay;
         }
       }
-      if (endCardIn !== null) {
-        endCardIn -= dt;
-        if (endCardIn <= 0 && world.state.result) {
-          endCardIn = null;
-          ui.showEnd(world.state.result);
+      const hint = hints.step(dt);
+      hud.prompt(hint ? STRINGS.hint[hint] : null);
+      if (endIn !== null) {
+        endIn -= dt;
+        if (endIn <= 0 && world.state.result) {
+          endIn = null;
+          hooks?.onNightEnd(level, world.state.result, log.report());
         }
       }
     },
@@ -251,21 +247,30 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       lastFrame = now;
       view?.draw(world, paused ? 1 : alpha, paused ? 0 : frameSeconds);
       const { state, setup } = world;
-      const { upgrades: owned } = setup;
-      ui.showHud({
+      const owned = setup.upgrades;
+      hud.update({
+        spawned: state.spawnIndex,
+        total: setup.endless ? 0 : setup.spawns.length,
         saved: state.saved,
-        spareHulls: Math.max(0, setup.difficulty.wreckAllowance - state.wrecked),
+        allowance: setup.difficulty.wreckAllowance,
+        wrecked: state.wrecked,
         caught: state.caught,
-        paused,
-        foghorn: owned.foghorn > 0 ? { cooldown: state.abilities.foghornCooldown } : null,
+        foghorn:
+          owned.foghorn > 0
+            ? {
+                cooldown: state.abilities.foghornCooldown,
+                full: foghornCooldown(ABILITIES.foghorn, owned.foghorn),
+              }
+            : null,
         flares: owned.flares > 0 ? state.abilities.flares : null,
-        switchLamp: state.lamp2 !== null,
+        lamp: state.lamp2 ? state.activeLamp : null,
       });
       if (debugPanel?.open) debugPanel.showWorld(world, paused);
     },
     resize(vp: Viewport) {
       viewport = vp;
       view?.resize(vp);
+      fitArrows();
       if (safeRing) drawSafeRing(safeRing, vp, VIEWPORT);
     },
   };

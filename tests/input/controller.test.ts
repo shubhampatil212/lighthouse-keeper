@@ -84,7 +84,7 @@ describe('keyboard', () => {
   });
 
   it('reports a pause press once', () => {
-    keys.dispatchEvent(key('keydown', 'Escape'));
+    keys.dispatchEvent(key('keydown', 'p'));
     expect(input.read(beam).pause).toBe(true);
     expect(input.read(beam).pause).toBe(false);
   });
@@ -93,6 +93,6 @@ describe('keyboard', () => {
 it('stops listening after dispose', () => {
   input.dispose();
   canvas.dispatchEvent(pointer('pointerdown', 100, 0));
-  keys.dispatchEvent(key('keydown', 'Escape'));
+  keys.dispatchEvent(key('keydown', 'p'));
   expect(input.read(beam)).toMatchObject({ aimAngle: null, pause: false });
 });

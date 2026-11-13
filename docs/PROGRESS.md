@@ -9,7 +9,7 @@ Claude Code updates this file at the end of every phase or session.
 | 02 Core simulation | done (awaiting owner check) | Deterministic sim, level 1-2 playable with debug graphics, fairness test, input (follow finger / drag to rotate / keyboard), debug panel |
 | 03 Rendering & visuals | done (owner accepted 2026-11-13) | Real 2.5D look: light-map darkness, water shader, beam shaft and bloom, low-poly reefs, six ship looks, island and buildings, fog/rain/snow, effects, region tints, Low/Medium/High/Auto |
 | 04 Ships & hazards | done (awaiting owner check) | Sailboat, ferry, tugboat, smuggler + coast guard; fog bands, icebergs, lightning, storm waves, whirlpool, pirates; second harbor with colorblind shapes; foghorn, flares, second lamp, bell buoy chime; sandbox at #sandbox; demo nights; fairness passes with every hazard |
-| 05 UI & screens | not started | |
+| 05 UI & screens | done (awaiting owner check) | Every screen from SCREENS.md connected: boot, title, first-launch difficulty, sea chart, level select, briefing, real HUD, pause, results with dawn and tips, harbor shop with buoy chart, logbook with diary, settings, credits, endless results. UI kit, back/Esc handling, live sea behind menus. Placeholder progress until phases 06/08 |
 | 06 Levels & campaign | not started | |
 | 07 Audio | not started | |
 | 08 Settings, saves, accessibility | not started | |
@@ -83,10 +83,42 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Sandbox is debug only:** `#sandbox` in a dev build (`npm run dev`), or with `?debug` in a production build. Changing the night options (abilities, buoys, second harbor or lamp) restarts it.
 - **2026-11-13 · Demo nights** (`?level=demo-ice`, `demo-storm`, `demo-cove`, `demo-archipelago`) show each group of new elements in play before the campaign exists. They start with the foghorn and 3 flares. They're not campaign levels.
 - **2026-11-13 · Temporary ability buttons** (Horn, Flare, Switch lamp) sit at the bottom of the screen, 44 px tall, until the phase 05 HUD. Keys: H = horn, F = flare, Q = switch lamp.
+- **2026-11-13 · Screens are plain DOM over the canvas** (`src/ui/kit/` holds the UI kit: buttons, icon buttons, sliders, switches, segmented controls, cards, modals, tabs, stars, coin counter, cooldown ring). Each menu scene is built by `menuScene()` in `src/scenes/menuScene.ts`, which also keeps the live sea drawing behind it.
+- **2026-11-13 · The live sea behind menus** is an empty, never-ending night (`src/scenes/backdrop.ts`): the island with the buildings earned so far and a beam sweeping by itself at 0.3 rad/s. The play scene hides it, since both draw into the same layers. The sea chart and level select hide it too (they cover the whole screen).
+- **2026-11-13 · The UI is always the dark (night) theme.** The phase 01 tokens switched panels to pale colors when the device prefers light mode; over the night sea that made text unreadable. `index.html` now sets `data-theme="dark"`. The sea chart is the one light screen, as SCREENS.md says.
+- **2026-11-13 · Back = Esc = the browser's back button.** Order: close the top dialog, then let the screen handle it (play opens Pause, Pause resumes, the shop cancels buoy placement), then go back a screen. The browser history keeps one spare entry to catch its back button; on the title screen, back leaves the page as usual. Esc no longer pauses through the input code (P still does), so Esc can't pause and unpause at once. The controller test now presses P.
+- **2026-11-13 · Screen stacks after a night are rebuilt** so back always makes sense: a night sits on Title → Chart → its region's level select; Results, the shop and "Quit to map" go back to the chart.
+- **2026-11-13 · The campaign list** (all 30 levels with their CONTENT.md names, what each introduces, and where regions sit on the chart) is in `src/data/campaign.ts`. Levels phase 06 hasn't written play a stand-in night, renamed and tinted for their region: region 1 plays 1-2's layout, regions 2–5 play the matching demo night (ice, storm, cove, archipelago). The stand-in's bonus objective shows on the briefing.
+- **2026-11-13 · Placeholder progress lives in memory only** (`src/app/progress.ts`, presets in `progressPresets.ts`). Results award stars, coins and ships saved, the shop spends coins, and regions unlock, but a reload starts a new keeper. `?progress=mid` (region 1 done, half of region 2, 185 coins) and `?progress=all` (everything, 2000 coins) let you test later states. Phase 06 finishes the rules; phase 08 saves them.
+- **2026-11-13 · Unlock rules (placeholder until phase 06):** a level opens when the one before it in its region is cleared; a region opens when the previous region's finale is cleared; each finished region adds its island building and diary page; endless watch opens after Harbor Bay. The foghorn is sold once 1-6 is cleared (so it can be bought before 2-1, where it's introduced), flares once 2-6 is cleared.
+- **2026-11-13 · Bell buoys are placed per level** (the next night's reef chart in the shop), at most 3 per region, priced 20 + 10 for each already placed in that region. They can't be moved yet.
+- **2026-11-13 · Settings apply at once and are kept in memory until phase 08.** Working now: graphics quality, frame-rate counter, screen shake, difficulty (restarts a night in progress), beam control, left-handed buttons, tutorial prompts, reduced motion, colorblind colors, larger text (1.25×). Stored but with nothing to control yet: the four volume sliders and mute (audio is phase 07), high-contrast reefs and vibration (phase 08). Export and import show as "coming soon"; reset progress works, with a two-tap confirmation. The debug panel's difficulty, control, quality and colorblind switches change the same settings.
+- **2026-11-13 · Contextual tutorial prompts** show once per visit, at the bottom of the screen, for 3.5 s, and never block play: a ship lost in the dark, the first smuggler, ferry, pirate, whirlpool and lightning. Phase 06 adds 1-1's scripted tutorial.
+- **2026-11-13 · Fail tips come from what happened** (`src/scenes/nightLog.ts` listens to events only): a lost ferry; pirates, the whirlpool or icebergs (when they caused at least half the wrecks); ships in the dark for 6 s or more; ships lit only shortly before they sank; otherwise a general sweep tip.
+- **2026-11-13 · HUD:** the progress bar shows ships still to come; wrecks left are hull icons; ability buttons (60 px) sit bottom right, bottom left in left-handed mode, with a cooldown ring on the foghorn, a charge count on flares, and the steered lamp's number on the switch button. Edge arrows now keep clear of the HUD's bars and the notch.
+- **2026-11-13 · The island stays in the centre of the screen** (phase 01 said to revisit once the HUD existed). The HUD's top bar and the ability buttons fit outside the 230-unit circle on portrait phones.
+- **2026-11-13 · The sea chart and level select are SVG** (drawn in code: paper, coastline with hatching, compass rose, rhumb lines; fog over locked regions), with real HTML buttons on top so keyboards and screen readers work. On short screens the chart scrolls rather than shrinking.
+- **2026-11-13 · The shop's lighthouse is an SVG drawing by day** (rather than a second, daytime Pixi scene): the lens grows with Wider lens, the glow with Brighter lamp, gear dots with Oiled gears, and it pulses when you buy.
+- **2026-11-13 · Ship and hazard drawings** for the briefing ("new tonight", gently animated) and the logbook (dark silhouettes until met) are small SVGs in `src/ui/illustrations.ts`.
+- **2026-11-13 · Player text is split into `src/ui/text/`** (common names, screens, logbook) and gathered into `STRINGS` in `src/ui/strings.ts`, which is still the only file the game imports text from. The 30 harbor-master briefing lines and the 5 diary pages are written (phase 06 may revise the briefings with the levels).
+- **2026-11-13 · Transitions are 250 ms** (SCREENS.md; it was 220) with a fog band sweeping across; with reduced motion, just the fade.
+- **2026-11-13 · Debug shortcuts:** `?level=` or `?seed=` still start a night at once (Title sits behind it), `?screen=<name>` opens any screen (`&night=2-3`, `&region=stormStrait`, `&fail` for a lost night's results), `#sandbox` as before.
+- **2026-11-13 · No new tests this phase** (the owner will write tests at the end of the project). The phase prompt's Playwright walk (Title → Map → Level → Play → Pause → Quit) was run by hand with a script instead, along with a keyboard-only walk; both pass with no console errors. The deferred tests are listed under Known issues.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Phase 05 tests to write (owner: no tests until the end, 2026-11-13):**
+  - Playwright: the main path Title → Map → Level → Play → Pause → Quit (the phase checklist's test); a keyboard-only walk; Esc and browser back on every screen; no cut-off content in an iPhone-shaped viewport with notch insets
+  - regression (bug fixed 2026-11-13): over the sea, the canvas (not the HUD layer) receives the mouse, so "follow finger" works with a cursor
+  - unit: progress rules (unlocks, `recordResult`, upgrade and buoy prices, buying, buoy limit), `pickTip` and the night log, the navigator's back order, `levelDef` stand-ins, `nextLevelId`, settings store updates
+- **Progress resets on reload** (memory only until phase 08), so a fresh visit always starts at "Begin your watch" and the difficulty choice. Use `?progress=mid` or `?progress=all` to skip ahead.
+- **Unbuilt levels play stand-ins** (1-2 or a demo night), so every region-1 night looks like 1-2 and 1-1's briefing shows 1-2's cargo bonus. Phase 06 writes the real levels and 1-1's tutorial.
+- **Endless watch is a placeholder:** its button and locked hint are real, and its results screen can be seen with `?screen=endlessResults`, but the mode itself is phase 06.
+- **Sound sliders, high-contrast reefs and vibration don't do anything yet** (phases 07 and 08). Export/import save are greyed out until phase 08.
+- **Bell buoys can't be removed or moved** once placed (no rule in the docs; easy to add if wanted).
+- **The HUD level label for debug demos shows the demo's id** (for example "demo-cove"). Campaign nights show "1-2 The cargo run".
+- **Visible focus rings appear on the first button of each screen** even when you tap rather than use the keyboard, in some browsers. It's the price of putting keyboard players straight on the first control.
 - **Tests still to write (owner asked to defer, 2026-11-13).** Already covered: fairness with every hazard, fog, icebergs, lightning, whirlpools, pirates, determinism, and all special ships. Still to write:
   - the foghorn: locked, slow, cooldown by level
   - flares: charges, empty
@@ -107,38 +139,22 @@ Claude Code updates this file at the end of every phase or session.
 - The water shader's WebGPU version is checked in desktop Chrome only (with a software GPU); WebGL is what phones use today.
 - `npm audit` reports a moderate advisory in `minimatch`, which ESLint and typescript-eslint use. It only affects the developer's lint tooling and never reaches players. Clears when those packages update.
 - **Lighting a ship that is scraping along a reef can make it crash sooner.** A dark ship drifts at 60% speed, so it can creep along a reef's edge for several seconds. Lighting it in the last second or two speeds it up to full speed before it can turn away. Each such ship was savable earlier (the fairness test checks this), but it may feel unfair in play. Worth watching in play-tests; a possible fix is to let lit ships speed up gradually instead of instantly.
-- **The HUD and end card are temporary** (`src/ui/playtest.ts`), and there's no pause screen: Esc or P pauses on a keyboard, but a phone can't pause yet. Phase 05 brings the real screens.
 - **Replays across different browsers may differ slightly**, because `Math.sin`/`Math.cos` can round differently from one engine to another. Within one browser a seed always replays exactly. This only matters if we ever share replays between devices.
 - Level 1-2 balance is rough (phase 10 does the balance pass). In 100 simulated nights on Keeper, a player who never moves the beam gets mostly ★ or ★★ and fails 6% of the time; a player who always lights the oldest ship gets mostly ★★ or ★★★.
 
 ## How to test the latest work
 (Plain-language steps for the owner.)
 
-1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173).
-2. **Sandbox** (try each element on its own): open http://localhost:5173/#sandbox. The panel on the right:
-   - **Ships:** pick a type, where it comes from and which harbor, then **Send ship**.
-   - **Hazards:** **Add** puts one at a random fair spot; **Clear** removes them. Lightning and storm waves are **On / Off**.
-   - **Place on tap:** pick a ship or hazard, turn it on, and tap the sea. Taps place things instead of steering until you turn it off.
-   - **Time scale:** 0.25× to 4×.
-   - **Night:** foghorn level, flare charges, buoys on reefs, second harbor, second lamp. These restart the sandbox.
-3. **Demo nights** (each group in a real night): add `?level=demo-ice` (fog bands, icebergs, a sailboat, a ferry), `?level=demo-storm` (lightning, waves, whirlpool, a tugboat), `?level=demo-cove` (smugglers, pirates), or `?level=demo-archipelago` (two harbors, second lamp) to the address.
-4. **Abilities:** tap **Horn**, **Flare** or **Switch lamp** at the bottom (keyboard: H, F, Q). The horn shows its cooldown in seconds; the flare shows charges left.
-5. **What to look for (the "recognizable in under a second" check):**
-   - **Sailboat:** drifts further with the current while dark.
-   - **Ferry:** gold lantern; losing it ends the night.
-   - **Tugboat:** while lit, rope lines to the dark ships it slows.
-   - **Smuggler:** dim lantern. Lit, it turns away, and a ring fills over 2 s. Caught: "+25", and a coast guard boat with a blue light tows it off.
-   - **Pirate:** a throbbing crimson lantern. When it hunts, a red dashed line and a closing red ring warn you for 2.5 s. Light it and it turns tail.
-   - **Fog band:** white strips; the beam visibly stops short behind them.
-   - **Iceberg:** pale blue ice, seen only in the light; it drifts.
-   - **Lightning:** a pale flicker at the top, then a white flash that lights everything.
-   - **Storm waves:** crests rolling one way, with an arrow when they turn.
-   - **Whirlpool:** a slow spiral with a red ring at its deadly core.
-   - **Two harbors:** colored dots by each lantern, colored lights round each harbor.
-   - **Colorblind:** add `&colorblind` (or tick it in the debug panel); the colors become orange and blue, plus a circle or triangle marker.
-6. On your phone (same Wi-Fi), open the **Network** address with `#sandbox` or `?level=demo-cove`, and check the buttons work one-handed.
-7. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 70 s), `npm run e2e`.
-8. Handy address options: `?seed=42`, `?level=...`, `?colorblind`, `?quality=low|medium|high|auto`, `?region=...`, `?weather=...`, `?parade` (now with the pirate and the coast guard), `?reveal`, `?debug`.
+1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
+2. **The main path:** tap "Tap to begin" → **Begin your watch** → pick a difficulty → **Light the lamp**. The night starts. Tap the pause button (top right) → **Quit to map** → tap **Harbor Bay** → tap a level buoy → read the briefing → **Light the lamp**. Finish or lose a night to see **Results** (dawn sky, stars one by one, or a tip if the fog won), then **Harbor** for the shop.
+3. **Back everywhere:** the phone's back gesture, the browser's back button and Esc should always do the sensible thing: close a dialog, open Pause during a night, or go back one screen.
+4. **Later progress:** add `?progress=mid` (region 1 done, 185 coins) or `?progress=all` to the address to see unlocked regions, stars, the shop with coins, diary pages and records.
+5. **One screen at a time:** `?screen=title`, `map`, `levelSelect`, `briefing&night=2-2`, `results`, `results&fail`, `shop&night=2-4&progress=mid`, `logbook&progress=mid`, `settings`, `credits`, `endlessResults`.
+6. **Settings to try** (from the title or from Pause, mid-night): left-handed buttons (abilities move to the left), larger text, reduced motion (no fog wipe, no star pop), colorblind colors (try `?level=demo-archipelago`), show frame rate, beam control, difficulty.
+7. **HUD with abilities:** `?level=demo-cove` or `?level=demo-archipelago` start with the foghorn (cooldown ring) and 3 flares (count badge); the archipelago adds the lamp switch. Keys H, F, Q, P still work.
+8. **Keyboard only (desktop):** Tab and Enter through every menu, arrow keys in the difficulty cards, settings choices and logbook tabs, Esc to go back.
+9. **Phase 04 sandbox** is unchanged: http://localhost:5173/#sandbox.
+10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 65 s), `npm run e2e`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -155,3 +171,13 @@ Claude Code updates this file at the end of every phase or session.
   Drawing: every new element, harbor colors and colorblind shapes, and effects for the new events. Input: H, F and Q keys, plus temporary ability buttons. Also a sandbox scene at `#sandbox` and four demo nights.
 
   Fairness was re-run with every hazard on test levels built from 1-2. It led to the iceberg changes and the storm-wave reef margin; pirates had the 2.5 s boarding window built in. Result: 250 unit tests and 5 browser tests pass. Per the owner, further unit tests are deferred (list under Known issues). Phase complete, waiting for the owner's play-test.
+- **2026-11-13 · Phase 05 UI & screens.** Built:
+  - A DOM UI kit (`src/ui/kit/`).
+  - Back handling for Esc and the browser button (`src/app/navigator.ts`).
+  - The live sea behind menus.
+  - Placeholder progress and a settings store (`src/app/`).
+  - The campaign list (`src/data/campaign.ts`), shop prices (`src/data/shop.ts`) and menu timing and default settings (`src/data/menus.ts`).
+  - Every screen in SCREENS.md (`src/scenes/`): boot, title, first-launch difficulty, sea chart, level select, briefing, play with the real HUD and Pause, results with dawn and fail tips, endless results, harbor shop with buoy chart, logbook (diary, ships, hazards, records), settings, credits.
+
+  The temporary HUD and end card are gone. Wrote the 30 briefing lines and 5 diary pages. Checked by script in a headless browser: the main path, a keyboard-only walk, every screen on portrait, landscape and desktop, the sandbox. No console errors. Typecheck, lint, 250 unit tests and 5 browser tests pass (one existing test now presses P to pause, one now looks for the new HUD). No new tests, per the owner. Phase complete, waiting for the owner's play-test.
+- **2026-11-13 · Fix: the beam didn't follow the mouse** (owner report). The HUD's full-screen layer was catching the pointer, because the `#ui > *` rule outranked `.hud { pointer-events: none }`. The rule is now `:where(#ui > *)`, so the HUD, toast and frame-rate counter let the pointer through to the sea. Checked in a browser: the beam turns toward the cursor, menu buttons still work, and the browser tests pass.

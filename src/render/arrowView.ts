@@ -18,6 +18,8 @@ export interface ArrowView {
     due: readonly (Point & { inSeconds: number })[],
     time: number,
   ): void;
+  /** Keeps arrows clear of the HUD's top and bottom bars (CSS px). */
+  setHudInsets(top: number, bottom: number): void;
   destroy(): void;
 }
 
@@ -27,6 +29,8 @@ const VISIBLE_MARGIN = 6;
 export function createArrowView(layer: Container, feel: RenderFeelConfig): ArrowView {
   const g = new Graphics({ label: 'edgeArrows' });
   layer.addChild(g);
+  let hudTop = 0;
+  let hudBottom = 0;
 
   const arrow = (vp: Viewport, target: Point, alpha: number): void => {
     const sx = vp.centerX + target.x * vp.scale;
@@ -40,6 +44,12 @@ export function createArrowView(layer: Container, feel: RenderFeelConfig): Arrow
       sy,
       feel.arrowInset,
       VISIBLE_MARGIN,
+      {
+        top: vp.insets.top + hudTop,
+        right: vp.insets.right,
+        bottom: vp.insets.bottom + hudBottom,
+        left: vp.insets.left,
+      },
     );
     if (!a) return;
     const s = 1 / vp.scale;
@@ -75,6 +85,10 @@ export function createArrowView(layer: Container, feel: RenderFeelConfig): Arrow
         const ramp = 1 - Math.max(0, Math.min(1, p.inSeconds / feel.arrowLookAhead));
         arrow(vp, p, pulse * (0.3 + 0.7 * ramp));
       }
+    },
+    setHudInsets(top, bottom) {
+      hudTop = top;
+      hudBottom = bottom;
     },
     destroy() {
       g.destroy();

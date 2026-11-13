@@ -22,6 +22,11 @@ body {
   user-select: none;
 }
 
+/* Components set their own display; `hidden` must still win. */
+[hidden] {
+  display: none !important;
+}
+
 #stage {
   position: fixed;
   inset: 0;
@@ -37,9 +42,45 @@ body {
 #fade {
   position: fixed;
   inset: 0;
+  z-index: 50;
+  overflow: hidden;
   background: var(--sea-deep);
   opacity: 1;
   pointer-events: none;
+}
+
+/* The "slight fog wipe" on screen changes (docs/SCREENS.md); just the fade with reduced motion. */
+#fade::after {
+  content: '';
+  position: absolute;
+  inset: 0 -60%;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(159, 184, 188, 0.28) 50%,
+    transparent 70%
+  );
+  transform: translateX(-60%);
+  opacity: 0;
+}
+
+#fade.is-wiping::after {
+  animation: fog-wipe 500ms ease-in-out;
+}
+
+.reduce-motion #fade::after {
+  display: none;
+}
+
+@keyframes fog-wipe {
+  from {
+    opacity: 1;
+    transform: translateX(-60%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(60%);
+  }
 }
 
 .boot-error {

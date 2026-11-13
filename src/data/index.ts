@@ -4,6 +4,7 @@
  */
 export * from './abilities';
 export * from './beam';
+export * from './campaign';
 export * from './controls';
 export * from './difficulties';
 export * from './harbors';
@@ -17,8 +18,11 @@ export * from './regions';
 export * from './renderFeel';
 export * from './sea';
 export * from './shipBehavior';
+export * from './shop';
 export * from './ships';
 export * from './stars';
+export * from './menus';
 export * from './vesselFeel';
 export * from './viewport';
 export type * from './types';
+export type * from './uiTypes';

@@ -14,6 +14,11 @@ export interface Scene {
   /** Draw; alpha is the interpolation between simulation steps. */
   render(alpha: number): void;
   resize?(vp: Viewport): void;
+  /**
+   * Back (Esc or the browser's back button) inside the scene: close a panel, open pause.
+   * Returns true if it handled it; otherwise the scene manager goes back a screen.
+   */
+  back?(): boolean;
 }
 
 /** Runs `swap` at the midpoint of a visual transition and resolves when it has finished. */
@@ -24,15 +29,24 @@ export const instantTransition: Transition = (swap) => {
   return Promise.resolve();
 };
 
-interface StackEntry {
+export interface StackEntry {
   name: string;
   params: SceneParams;
 }
 
 export interface SceneManager {
   register(name: string, scene: Scene): void;
-  /** Switch to a scene. The current one goes on the back stack unless `replace` is true. */
-  go(name: string, params?: SceneParams, options?: { replace?: boolean }): Promise<void>;
+  /**
+   * Switch to a scene. The current one goes on the back stack unless `replace` is true;
+   * `stack` replaces the whole back stack (for example Results → Map with Title under it).
+   */
+  go(
+    name: string,
+    params?: SceneParams,
+    options?: { replace?: boolean; stack?: readonly StackEntry[] },
+  ): Promise<void>;
+  /** The scene showing now. */
+  readonly current: Scene | null;
   /** Return to the previous scene. Resolves to false if there is nowhere to go back to. */
   back(): Promise<boolean>;
   readonly currentName: string | null;
@@ -82,7 +96,10 @@ export function createSceneManager(
     go(name, params = {}, options = {}) {
       lookup(name);
       return enqueue(async () => {
-        if (current && !options.replace) stack.push({ name: current.name, params: current.params });
+        if (options.stack) stack.splice(0, stack.length, ...options.stack);
+        else if (current && !options.replace) {
+          stack.push({ name: current.name, params: current.params });
+        }
         await switchTo({ name, params });
       });
     },
@@ -93,6 +110,9 @@ export function createSceneManager(
         await switchTo(previous);
         return true;
       });
+    },
+    get current() {
+      return current?.scene ?? null;
     },
     get currentName() {
       return current?.name ?? null;

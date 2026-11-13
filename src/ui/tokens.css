@@ -61,6 +61,12 @@
   /* Sizes */
   --tap-min: 44px;
   --radius: 12px;
+  /* docs/SCREENS.md: menus are a centered column at most 440 px wide. */
+  --menu-width: 440px;
+
+  /* Motion (the reduced-motion setting turns these off) */
+  --ease-fast: 140ms ease;
+  --ease-slow: 250ms ease;
 
   color-scheme: dark;
 }
@@ -76,4 +82,14 @@
     --ui-button: rgba(0, 0, 0, 0.06);
     color-scheme: light;
   }
+}
+
+/* Settings: reduced motion (no slides or pops, only fades) and larger text (1.25× interface). */
+:root.reduce-motion {
+  --ease-fast: 0ms linear;
+  --ease-slow: 120ms linear;
+}
+
+:root.large-text {
+  font-size: 125%;
 }

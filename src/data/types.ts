@@ -479,8 +479,10 @@ export interface ControlsConfig {
 }
 
 export interface PlayConfig {
-  /** Seconds between the night ending and the end card appearing. */
+  /** Seconds between the night ending and the results screen. */
   endCardDelay: number;
+  /** How long a contextual tutorial prompt stays up (seconds). */
+  hintSeconds: number;
 }
 
 /** How the night looks and moves. Drawing only: none of this changes the simulation. */

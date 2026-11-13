@@ -8,11 +8,21 @@ export interface EdgeArrow {
   angle: number;
 }
 
+/** Extra room on each side (CSS px): the notch, the home bar and the HUD's bars. */
+export interface ArrowEdges {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+const NO_EDGES: ArrowEdges = { top: 0, right: 0, bottom: 0, left: 0 };
+
 /**
  * For a target at screen point (px, py): null if it's on screen, at least `margin` px inside the
  * edges (so it can be seen), otherwise
  * the point where the line from the island (cx, cy) to the target crosses a rectangle `inset` px inside
- * the screen edges.
+ * the screen edges (plus `edges` on each side).
  */
 export function edgeArrow(
   width: number,
@@ -23,14 +33,15 @@ export function edgeArrow(
   py: number,
   inset: number,
   margin: number,
+  edges: ArrowEdges = NO_EDGES,
 ): EdgeArrow | null {
   if (px >= margin && px <= width - margin && py >= margin && py <= height - margin) return null;
   const dx = px - cx;
   const dy = py - cy;
-  const left = inset;
-  const right = width - inset;
-  const top = inset;
-  const bottom = height - inset;
+  const left = inset + edges.left;
+  const right = width - inset - edges.right;
+  const top = inset + edges.top;
+  const bottom = height - inset - edges.bottom;
   let t = 1;
   if (dx > 0) t = Math.min(t, (right - cx) / dx);
   if (dx < 0) t = Math.min(t, (left - cx) / dx);

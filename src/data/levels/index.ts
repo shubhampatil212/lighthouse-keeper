@@ -4,6 +4,7 @@ import { LEVEL_1_2 } from './1-2';
 import { DEMO_LEVELS, DEMO_UPGRADES } from './demos';
 
 export { DEMO_LEVELS, DEMO_UPGRADES, LEVEL_1_2 };
+export * from './backdrop';
 export * from './sandbox';
 
 /** Every playable level, by id. */

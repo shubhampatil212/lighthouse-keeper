@@ -59,6 +59,8 @@ export interface NightRenderer {
   /** Debug: outline hidden rocks and dark ships in red (drawing only). */
   setRevealAll(on: boolean): void;
   setReducedMotion(on: boolean): void;
+  /** Keeps the edge arrows clear of the HUD's top and bottom bars (CSS px). */
+  setHudInsets(top: number, bottom: number): void;
   destroy(): void;
 }
 
@@ -298,6 +300,9 @@ export function createNightRenderer(
     setReducedMotion(on) {
       effects.setReducedMotion(on);
       sky.setReducedMotion(on);
+    },
+    setHudInsets(top, bottom) {
+      arrows.setHudInsets(top, bottom);
     },
     destroy() {
       for (const view of [

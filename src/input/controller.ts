@@ -28,7 +28,8 @@ export interface PointerSurface extends EventTarget {
 
 const LEFT_KEYS = new Set(['ArrowLeft', 'a', 'A']);
 const RIGHT_KEYS = new Set(['ArrowRight', 'd', 'D']);
-const PAUSE_KEYS = new Set(['Escape', 'p', 'P']);
+// Esc is "back" everywhere (src/app/navigator.ts); in play, back opens Pause.
+const PAUSE_KEYS = new Set(['p', 'P']);
 /** Ability keys: H = horn, F = flare, Q = switch lamp. */
 const ACTION_KEYS: Readonly<Record<string, ActionIntent>> = {
   h: 'foghorn',

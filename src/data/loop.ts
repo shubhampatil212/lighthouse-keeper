@@ -6,5 +6,6 @@ export const LOOP: LoopConfig = {
 };
 
 export const SCENE_TRANSITION: SceneTransitionConfig = {
-  fadeMs: 220,
+  // docs/SCREENS.md: a 250 ms fade (with a fog wipe unless motion is reduced).
+  fadeMs: 250,
 };
