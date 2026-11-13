@@ -2,6 +2,7 @@
  * Harbor shop: the lighthouse by day, upgrade cards (level pips, effect, cost) and bell buoy
  * placement on a mini chart of the next night's reefs (docs/SCREENS.md "Harbor").
  */
+import { emitUi } from '../app/uiEvents';
 import { levelDef, placeOf } from '../app/campaign';
 import {
   buoyCost,
@@ -58,6 +59,7 @@ export function createShopScene(ctx: GameContext): Scene {
           const next = buyUpgrade(ctx.progress.get(), def);
           if (!next) return;
           ctx.progress.set(next);
+          emitUi({ type: 'buy' });
           refresh(true);
           ctx.toast(STRINGS.shopBought(STRINGS.upgradeName[def.id]));
         },
@@ -115,7 +117,10 @@ export function createShopScene(ctx: GameContext): Scene {
         b.addEventListener('click', () => {
           const next = placeBuoy(ctx.progress.get(), levelId, spot.index);
           placing = false;
-          if (next) ctx.progress.set(next);
+          if (next) {
+            ctx.progress.set(next);
+            emitUi({ type: 'buy' });
+          }
           refresh(next !== null);
         });
         return b;

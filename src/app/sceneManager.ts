@@ -51,6 +51,8 @@ export interface SceneManager {
   back(): Promise<boolean>;
   readonly currentName: string | null;
   readonly canGoBack: boolean;
+  /** Calls `listener` each time a scene is entered (audio picks its music this way). */
+  onEnter(listener: (name: string, params: SceneParams) => void): void;
   update(dt: number): void;
   render(alpha: number): void;
   resize(vp: Viewport): void;
@@ -65,6 +67,7 @@ export function createSceneManager(
   let current: (StackEntry & { scene: Scene }) | null = null;
   // Each switch waits for the one before it, so rapid taps can't interleave enter/exit calls.
   let queue: Promise<unknown> = Promise.resolve();
+  const enterListeners: ((name: string, params: SceneParams) => void)[] = [];
 
   const lookup = (name: string): Scene => {
     const scene = scenes.get(name);
@@ -79,6 +82,7 @@ export function createSceneManager(
       current = { ...entry, scene };
       scene.resize?.(getViewport());
       scene.enter(entry.params);
+      for (const listener of enterListeners) listener(entry.name, entry.params);
     });
   };
 
@@ -119,6 +123,9 @@ export function createSceneManager(
     },
     get canGoBack() {
       return stack.length > 0;
+    },
+    onEnter(listener) {
+      enterListeners.push(listener);
     },
     update(dt) {
       current?.scene.update(dt);

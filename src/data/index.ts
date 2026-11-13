@@ -3,6 +3,7 @@
  * Logic imports these; it never hard-codes balance values. Shapes are in types.ts.
  */
 export * from './abilities';
+export * from './sound';
 export * from './beam';
 export * from './campaign';
 export * from './controls';
@@ -27,3 +28,4 @@ export * from './vesselFeel';
 export * from './viewport';
 export type * from './types';
 export type * from './uiTypes';
+export type * from './soundTypes';

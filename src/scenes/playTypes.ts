@@ -1,5 +1,6 @@
 /** The play scene's options, hooks and public shape (see play.ts). */
 import type { Renderer as PixiRenderer } from 'pixi.js';
+import type { NightSound } from '../audio';
 import type { Scene } from '../app/sceneManager';
 import type { Viewport } from '../app/viewport';
 import type { IslandBuildingId, LevelDef, QualityProfile, Upgrades } from '../data/types';
@@ -51,6 +52,8 @@ export interface PlaySceneOptions {
   /** The menu sea, hidden while a night is on (both draw into the same layers). */
   backdrop?: Backdrop;
   hooks?: PlayHooks;
+  /** Sound for the night (events, pause, the beam's whir). */
+  sound?: NightSound;
 }
 
 export interface PlayScene extends Scene {

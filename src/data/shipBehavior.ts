@@ -17,6 +17,8 @@ export const SHIP_BEHAVIOR: ShipBehaviorConfig = {
   litTurnRate: 1.9,
   darkTurnRate: 0.45,
   lostAfter: 4,
+  dangerDarkAfter: 3,
+  dangerReefDistance: 25,
   avoidAheadCos: -0.3,
   avoidStrength: 2.4,
   avoidTangentFactor: 1.3,

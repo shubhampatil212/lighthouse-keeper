@@ -201,6 +201,10 @@ export interface ShipBehaviorConfig {
   darkTurnRate: number;
   /** Seconds in the dark before a ship counts as lost (shows the "?" marker). */
   lostAfter: number;
+  /** Music tension (docs/ART_AUDIO.md): a ship is "in danger" after this long in the dark… */
+  dangerDarkAfter: number;
+  /** …or while dark within this distance of a rock's edge (world units). */
+  dangerReefDistance: number;
   /** Reef avoidance: only rocks at least this "ahead" (cosine) are avoided. */
   avoidAheadCos: number;
   /** Reef avoidance push strength at the rock's edge. */

@@ -2,6 +2,7 @@
  * Results: dawn breaks over the sea, stars land one at a time, then the night's numbers
  * (docs/SCREENS.md "Results"). A failed night gets a gentle tip based on what went wrong.
  */
+import { emitUi } from '../app/uiEvents';
 import { levelDef, nextLevelId, placeOf } from '../app/campaign';
 import type { NightAward, Unlock } from '../app/progress';
 import type { Scene } from '../app/sceneManager';
@@ -157,6 +158,9 @@ export function createResultsScene(ctx: GameContext): Scene {
                 size: 'large',
                 delayMs: calm ? 0 : UI_FEEL.starDelayMs,
                 revealMs: calm ? 0 : UI_FEEL.starIntervalMs,
+                onStar: (n) => {
+                  emitUi({ type: 'star', n });
+                },
               })
             : h('p', {
                 className: 'results__tip',

@@ -40,8 +40,21 @@ export type SimEvent =
       x: number;
       y: number;
     }
-  | { type: 'shipLit'; tick: number; shipId: number }
-  | { type: 'shipLost'; tick: number; shipId: number }
+  | { type: 'shipLit'; tick: number; shipId: number; x: number; y: number }
+  | { type: 'shipLost'; tick: number; shipId: number; x: number; y: number }
+  /**
+   * A dark ship has been unlit for a while, or is close to a rock (for the music's tension).
+   * It ends with shipOutOfDanger, or when the ship is lit, saved or wrecked.
+   */
+  | {
+      type: 'shipInDanger';
+      tick: number;
+      shipId: number;
+      reason: 'dark' | 'reef';
+      x: number;
+      y: number;
+    }
+  | { type: 'shipOutOfDanger'; tick: number; shipId: number }
   | {
       type: 'shipSaved';
       tick: number;

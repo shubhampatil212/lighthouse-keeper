@@ -28,6 +28,7 @@ import { createNightLog, type NightLog } from './nightLog';
 import type { PlayScene, PlaySceneOptions } from './playTypes';
 import { regionFor, weatherFor } from './playLook';
 import { createPlayHints } from './playHints';
+import { createPlaySound } from './playSound';
 import { createTutorial, type Tutorial } from './tutorial';
 
 export type { PlayHooks, PlayPrefs, PlayScene, PlaySceneOptions } from './playTypes';
@@ -66,6 +67,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     settingsPanel: () => hooks?.settingsPanel() ?? document.createElement('div'),
   });
   const hints = createPlayHints(() => prefs.tutorialPrompts);
+  const sound = createPlaySound(options.sound);
 
   let settings = options.settings;
   let quality = options.quality;
@@ -115,6 +117,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   function setPaused(on: boolean): void {
     if (on && world.state.status !== 'playing') return;
     paused = on;
+    sound.paused(on);
     if (!hooks) return;
     if (on) pause.show();
     else pause.hide();
@@ -132,6 +135,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     setPaused(false);
     endIn = null;
     view?.setNight(world);
+    sound.start(level, settings);
   }
 
   const load = (nextLevel: LevelDef, nextUpgrades: Upgrades): void => {
@@ -248,11 +252,13 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
         view?.capture(world);
         world.step(dt, first ? intents : { ...intents, ...NO_ACTIONS });
         first = false;
+        sound.tick(world, dt);
         for (const event of world.drainEvents()) {
           view?.onEvent(event, world);
           log.onEvent(event);
           hints.onEvent(event);
           tutorial?.onEvent(event);
+          sound.event(event);
           if (event.type === 'levelEnded') endIn = PLAY.endCardDelay;
         }
       }

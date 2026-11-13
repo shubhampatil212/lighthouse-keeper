@@ -45,6 +45,8 @@ export interface Ship {
   litTime: number;
   /** Shown with a "?" marker after lostAfter seconds in the dark. */
   lost: boolean;
+  /** In danger for the music's tension: dark for a while, or dark and close to a rock. */
+  inDanger: boolean;
   /** Dark drift: current heading error, the value it eases toward, and time until a new one. */
   error: number;
   errorTarget: number;
@@ -146,6 +148,7 @@ export function spawnShip(
     darkTime: 0,
     litTime: 0,
     lost: false,
+    inDanger: false,
     error,
     errorTarget: 0,
     errorTimer: behavior.spawnErrorDelay,
@@ -228,9 +231,11 @@ export function stepShip(
   let turnRate: number;
   let speed: number;
   if (origin) {
-    if (!wasLit) emit({ type: 'shipLit', tick, shipId: ship.id });
+    if (!wasLit) emit({ type: 'shipLit', tick, shipId: ship.id, x: ship.x, y: ship.y });
     ship.darkTime = 0;
     ship.lost = false;
+    // Lighting a ship ends its danger; listeners treat shipLit as the all-clear.
+    ship.inDanger = false;
     ship.litTime += dt;
     if (smuggler && ship.litTime >= rules.smuggler.catchSeconds) return CAUGHT;
     // A smuggler turns away from the light; every other ship heads for its harbor.
@@ -243,7 +248,7 @@ export function stepShip(
     ship.darkTime += dt;
     if (!ship.lost && ship.darkTime >= behavior.lostAfter) {
       ship.lost = true;
-      emit({ type: 'shipLost', tick, shipId: ship.id });
+      emit({ type: 'shipLost', tick, shipId: ship.id, x: ship.x, y: ship.y });
     }
     wander(ship, behavior, dt);
     speed = ship.speed * behavior.darkSpeedFactor;
@@ -285,6 +290,7 @@ export function stepShip(
     }
   }
   const hull = type.width * behavior.hullCollisionFactor;
+  if (!ship.lit) checkDanger(ship, rocks, hull, behavior, tick, emit);
   const rock = rockAt(rocks, ship.x, ship.y, hull);
   if (rock && !(rock.kind === 'iceberg' && shovedByIceberg(ship, rock, hull, rules))) {
     const cause = rock.kind === 'iceberg' ? 'iceberg' : 'reef';
@@ -292,4 +298,27 @@ export function stepShip(
   }
   if (Math.hypot(ship.x - harbor.x, ship.y - harbor.y) < harbor.radius) return SAVED;
   return SAILING;
+}
+
+/**
+ * A dark ship is in danger once it has been unlit for `dangerDarkAfter` seconds, or while it is
+ * within `dangerReefDistance` of a rock. The music's tension layer listens for the change.
+ */
+function checkDanger(
+  ship: Ship,
+  rocks: readonly Rock[],
+  hull: number,
+  behavior: ShipBehaviorConfig,
+  tick: number,
+  emit: Emit,
+): void {
+  const nearRock = rockAt(rocks, ship.x, ship.y, hull + behavior.dangerReefDistance) !== null;
+  const longDark = ship.darkTime >= behavior.dangerDarkAfter;
+  const danger = nearRock || longDark;
+  if (danger === ship.inDanger) return;
+  ship.inDanger = danger;
+  if (danger) {
+    const reason = longDark ? 'dark' : 'reef';
+    emit({ type: 'shipInDanger', tick, shipId: ship.id, reason, x: ship.x, y: ship.y });
+  } else emit({ type: 'shipOutOfDanger', tick, shipId: ship.id });
 }

@@ -11,7 +11,7 @@ Claude Code updates this file at the end of every phase or session.
 | 04 Ships & hazards | done (awaiting owner check) | Sailboat, ferry, tugboat, smuggler + coast guard; fog bands, icebergs, lightning, storm waves, whirlpool, pirates; second harbor with colorblind shapes; foghorn, flares, second lamp, bell buoy chime; sandbox at #sandbox; demo nights; fairness passes with every hazard |
 | 05 UI & screens | done (awaiting owner check) | Every screen from SCREENS.md connected: boot, title, first-launch difficulty, sea chart, level select, briefing, real HUD, pause, results with dawn and tips, harbor shop with buoy chart, logbook with diary, settings, credits, endless results. UI kit, back/Esc handling, live sea behind menus. Placeholder progress until phases 06/08 |
 | 06 Levels & campaign | done (awaiting owner check) | All 30 levels, 1-1 tutorial and new-mechanic prompts, bot play-tester and balance report, star coins and unlock notes, endless watch and daily sea, debug unlock/jump |
-| 07 Audio | not started | |
+| 07 Audio | done (owner accepted 2026-11-13) | Procedural sound: engine with buses and voice limit, ambience per region, adaptive music (title, calm/tension, dawn, fail), every sound effect from events with pitch variation and stereo position, volume sliders and mute, sound test page in the debug panel |
 | 08 Settings, saves, accessibility | not started | |
 | 09 Polish & mobile | not started | |
 | 10 QA & release | not started | |
@@ -123,10 +123,27 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · The bot play-tester runs through Vitest** with its own config (`npm run playtest`), because Node can't load the game's TypeScript imports directly and we didn't want a new dependency. A small `tools/playtest/node.d.ts` declares the few Node functions it uses instead of adding `@types/node`.
 - **2026-11-13 · The bots** play with the upgrades a typical keeper owns on reaching each region (`tools/playtest/kits.ts`). "Smart" knows the layout and plays for the bonus, like a practised player; it rethinks every 0.1 s.
 - **2026-11-13 · The stand-in nights are gone;** unknown level ids fall back to 1-2. The demo nights (`?level=demo-ice` and so on) stay for debugging.
+- **2026-11-13 · Phase 07: two new simulation events for the music's tension.** ART_AUDIO says tension plays "when any ship is lost or near a reef". Audio may only listen to events, so the simulation now emits `shipInDanger` (a dark ship has been unlit for 3 s, or is within 25 wu of a rock's edge) and `shipOutOfDanger` (a dark ship drifted clear). Lighting, saving or wrecking a ship also ends its danger. The thresholds are `dangerDarkAfter` and `dangerReefDistance` in `src/data/shipBehavior.ts`. They don't change how ships move, so seeds replay exactly as before. `shipLit` and `shipLost` now also carry the ship's position (for stereo).
+- **2026-11-13 · Sound starts on the first tap or key press** (not Esc, which browsers don't count). The AudioContext is created inside that gesture, so there's no autoplay warning in the console.
+- **2026-11-13 · Volume sliders use a squared curve** (slider 50 = a quarter of the power), which sounds even to the ear. Changes glide over 20 ms: instant, but without a click. Mute sets the master to silence.
+- **2026-11-13 · At most 24 sound-effect voices at once**, and the same sound can't restart within 45–500 ms (per sound, in `src/data/sound.ts`). When all voices are busy, a more important sound (wreck, ship home, foghorn, star) fades out the oldest less important one. Music and ambience don't count toward the limit.
+- **2026-11-13 · The music ducks under the save chime and the wreck** (to 45% for about 0.7 s), so it never covers them.
+- **2026-11-13 · "Ship lit for the first time" rings once per ship per night,** even if the beam leaves and finds it again.
+- **2026-11-13 · Sounds for events the table doesn't list** (kept quiet): a bell buoy ringing → buoy bell; smuggler caught → small chime and coin; pirate arrives → low distant horn; ability not ready → dull tick; lamp switched → mechanical clunk. Waves shifting, tug towing and the whirlpool have no sound of their own.
+- **2026-11-13 · Music per screen:** the title theme plays on every menu screen and carries on between them (it doesn't restart); a night plays the calm/tension music; Results plays the dawn motif (won) or the darker fail motif; the endless watch's results play the dawn motif (the watch ends at morning). Pause dims the night's music to 35%.
+- **2026-11-13 · Menus play Harbor Bay's sea, a little quieter.** A night plays its own region's sea; rain follows the night's weather (so Storm Strait's rain, or any level with rain).
+- **2026-11-13 · The beam's whir needs the turn speed.** The play scene measures it from the beam angle it already reads for drawing and passes it on; audio never reads the simulation. High quality only, as ART_AUDIO says.
+- **2026-11-13 · Menu clicks come from one listener** on the screens' layer (any button, switch or segmented choice), not from each button. The HUD's ability buttons don't click; their abilities have their own sounds. A click right after a back or buy sound is skipped so they don't double up.
+- **2026-11-13 · Sound levels and timings live in `src/data/sound.ts`** (mix, voice limit, every effect's level and spacing, music tempo, chords, motifs, each region's ambience). The files are named `sound` rather than `audio` because the lint rule that keeps the simulation pure blocks any import path ending in `audio`. The shape of each synthesized sound (its frequencies and envelope) stays in `src/audio/sfx/`, as sound design rather than balance.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **The mix was set in a headless browser by meter, not by ear.** On the title screen the master sits around −30 dB RMS, effects peak well below clipping, and the voice cap held at 24 under a burst of 150 sounds. Please listen on phone speakers and headphones; each level is one number in `src/data/sound.ts` (`busLevel`, and each effect's `level`).
+- **Phase 07 tests to write (owner: no tests until the end):**
+  - unit: `shipInDanger` / `shipOutOfDanger` (dark for 3 s, near a rock, cleared by drifting away; never for smugglers; no events while lit); the night listener (tension from events, cleared by lit/saved/wrecked/caught/escaped and at the night's end; the first-lit bell once per ship; pan from x); music theory (`degreeSemis`, `walk` stays in range and lands on chord notes on strong beats); the volume curve
+  - browser: no autoplay warning before the first tap and the context running after it; mute silences the master meter; the voice cap under a burst of sounds; the sound test buttons play without errors
+- **`main.ts` (315 lines) and `play.ts` (309)** grew a few lines with the audio hookup. Worth splitting in phase 09 with the others.
 - **The economy is far more generous than CONTENT.md §8 asks (owner decision needed; tracked in `docs/TODO.md`).** With the ship coins (§2) and prices (§4) as written, a ★★★ region pays 1.9–4× the cost of maxing Brighter lamp (target about 1.3×), and a keeper can afford every upgrade (about 1,200 coins) by region 2–3. Options: halve the coins per ship, raise the shop's cost growth (0.6) to about 1.2, or both. I haven't changed CONTENT's numbers; the economy table in `docs/balance-report.md` will show the effect of whichever you pick. Phase 10 has the balance pass.
 - **Balance outliers** (details in `docs/balance-report.md`): several region 2–5 "introduce" levels are easy for the smart bot (≈ 3.0 stars); the sweeper fails region 3+ finales and a few others more than the 20–40% target (3-6, 4-5, 4-6, 5-2), and a few less (3-4, 4-2, 5-3, 5-5); region 1's 1-3 is a step up before an easier 1-4 (its bonus, "no ship in the dark over 6 s", is fixed by CONTENT.md).
 - **Phase 06 tests to write (owner: no tests until the end):**
@@ -143,7 +160,7 @@ Claude Code updates this file at the end of every phase or session.
   - regression (bug fixed 2026-11-13): over the sea, the canvas (not the HUD layer) receives the mouse, so "follow finger" works with a cursor
   - unit: progress rules (unlocks, `recordResult`, upgrade and buoy prices, buying, buoy limit), `pickTip` and the night log, the navigator's back order, `levelDef` stand-ins, `nextLevelId`, settings store updates
 - **Progress resets on reload** (memory only until phase 08), so a fresh visit always starts at "Begin your watch" and the difficulty choice. Use `?progress=mid` or `?progress=all` to skip ahead.
-- **Sound sliders, high-contrast reefs and vibration don't do anything yet** (phases 07 and 08). Export/import save are greyed out until phase 08.
+- **High-contrast reefs and vibration don't do anything yet** (phase 08). The sound sliders and mute work as of phase 07. Export/import save are greyed out until phase 08.
 - **Bell buoys can't be removed or moved** once placed (no rule in the docs; easy to add if wanted).
 - **The HUD level label for debug demos shows the demo's id** (for example "demo-cove"). Campaign nights show "1-2 The cargo run".
 - **Visible focus rings appear on the first button of each screen** even when you tap rather than use the keyboard, in some browsers. It's the price of putting keyboard players straight on the first control.
@@ -173,13 +190,19 @@ Claude Code updates this file at the end of every phase or session.
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
-2. **Region 1 on Keeper (the phase checklist):** start fresh (no `?progress=`), choose **Keeper**, and play 1-1 to 1-6 in order. 1-1 teaches you: the first boat comes down the beam, then the beam swings away and asks you to bring it back, then a rock appears. Tell me whether each night feels fair and a little harder than the one before.
-3. **Finishing 1-6:** the results list what opened: Northern Ice, the endless watch, the cottage, a diary page and the foghorn in the shop. The cottage then stands on the island behind the menus, and the logbook has the new page. To get there fast: open the debug panel (` key, or `?debug`), **Jump to level** → 1-6.
-4. **Endless watch and daily sea:** once Harbor Bay is done, the title has **Endless watch** and **Daily sea**. Ships keep coming faster, a reef joins every 30 s, a new hazard every 2 minutes; the watch ends when you lose one ship more than your difficulty allows. **Again** starts another. The daily sea is the same for everyone today.
-5. **Any level:** debug panel → **Unlock all** (every level ★★★ on your difficulty) or **Jump to level**. `?level=3-4` still starts a night directly.
-6. **Bonus objectives** show on each briefing and on the results ("Done" or "Missed"). New star coins show as **Star bonus** on the results.
-7. **Balance numbers:** `docs/balance-report.md` (made by `npm run playtest`, about 3 minutes).
-8. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 3 minutes; it checks fairness on all 30 levels), `npm run e2e`, `npm run playtest`.
+2. **Sound starts with your first tap** on the loading screen. You should hear the title theme (slow pad, a soft bell melody) over a quiet sea, and soft clicks on every button. Back makes a lower click; buying in the shop adds a coin.
+3. **Eyes-closed test (the phase checklist):** play any night (`?level=1-2` is quick). Listen for:
+   - **saved**: a warm rising chime and a coin clink;
+   - **wrecked**: a wood crack, a low rumble, then a far-off bell;
+   - **a ship lost in the dark or drifting near rocks**: a soft low pulse and thin high strings join the music within about 1.5 s, and fade out again once every ship is safe;
+   - a small two-note bell the first time each ship is lit, and a low thunk when the light finds a reef.
+4. **Results:** a won night plays a short rising dawn motif, and each star rings one step higher. A lost night plays a darker, falling version.
+5. **Volumes:** Settings (or Pause → Settings). The four sliders change the sound as you drag; **Mute** silences everything.
+6. **Regions:** Harbor Bay has gulls and a distant bell; Northern Ice is windier; Storm Strait has rain and bigger waves; at High quality the beam makes a faint whir when it turns fast.
+7. **Sound test page:** open the debug panel (` key, or `?debug`), scroll to **Sound test**. Every sound has a button; Music lets you hear the title, night, tension, dawn and fail; Ambience plays each region's sea (tick **rain** for rain). The meters show each bus's level; the top line shows how many effect voices are playing (never more than 24).
+8. **Please listen on both phone speakers and headphones, and play for a while** (the doc asks that nothing gets tiring after 30 minutes). If anything is too loud, too quiet or grating, tell me which sound; every level is one number in `src/data/sound.ts`.
+9. Earlier phases: **Unlock all** / **Jump to level** in the debug panel; `docs/balance-report.md` for balance numbers.
+10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 3 minutes), `npm run e2e`, `npm run playtest`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -217,4 +240,4 @@ Claude Code updates this file at the end of every phase or session.
   - The fairness test now covers all 30 levels (8 seeds each by default, 120 for 1-2).
 
   Checked in a headless browser: 1-1's prompts, the daily sea, several late levels; no console errors. No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's play-test of region 1.
-
+- **2026-11-13 · Phase 07 Audio.** Built `src/audio/`: the engine (AudioContext made on the first tap, master/music/effects/ambience buses with a light compressor, suspends with the tab, 24-voice limit), synth building blocks (`synth/`: white/pink/brown noise, envelopes, filters and LFOs, FM bell, pluck, pad, horn, noise bursts, thunk, generated-impulse reverb), ambience per region (waves, wind, rain with droplets, gulls, buoy bell), the music director (`music/`: title theme, calm and tension layers in D Dorian at 70 BPM with a 1.5 s cross-fade, dawn and fail motifs), every sound effect in the table plus a few extras (`sfx/`), each with ±3% pitch and stereo position from the ship's x. Two new simulation events (`shipInDanger`, `shipOutOfDanger`) drive the tension. UI events (`src/app/uiEvents.ts`) for clicks, back, buy and stars; scenes pick their music through a new SceneManager `onEnter` hook. Sound test page in the debug panel (`src/ui/debugSound.ts`). Checked in a headless browser: no autoplay warning before the first tap, the context runs after it, every sound test button plays with no console errors, the tension layer comes and goes during a night, and a burst of 150 sounds stays at 24 voices and all are released. No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's listening test.

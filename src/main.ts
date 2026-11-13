@@ -9,6 +9,7 @@ import './ui/base.css';
 import './ui/kit/kit.css';
 import './ui/screens.css';
 import './ui/hud.css';
+import { wireAudio } from './app/audioWiring';
 import { settingsFromAddress } from './app/debugParams';
 import { createFadeTransition } from './app/fade';
 import { createGame } from './app/game';
@@ -45,6 +46,7 @@ import { createSandboxScene } from './scenes/sandbox';
 import { createBootScreen } from './ui/bootScreen';
 import { createDebugCampaign } from './ui/debugCampaign';
 import { createDebugPanel, DEFAULT_DEBUG_SETTINGS, type DebugSettings } from './ui/debugPanel';
+import { createDebugSound } from './ui/debugSound';
 import { createFpsMeter } from './ui/fpsMeter';
 import { STRINGS } from './ui/strings';
 
@@ -146,6 +148,8 @@ async function boot(): Promise<void> {
     version,
     boot: bootScreen,
   });
+  const audio = wireAudio(scenes, settings, uiRoot);
+  audio.setQuality(qualityLevel);
 
   // ?level=1-2 or a debug demo such as ?level=demo-cove (see src/data/levels/demos.ts) plays at once.
   const levelParam = params.get('level') ?? '';
@@ -166,6 +170,7 @@ async function boot(): Promise<void> {
     quality: QUALITY[qualityLevel],
     prefs: prefsOf(settings.get()),
     backdrop,
+    sound: audio,
   };
   const play = sandbox
     ? createSandboxScene(sceneOptions)
@@ -188,6 +193,7 @@ async function boot(): Promise<void> {
     viewport.setMaxPixelRatio(QUALITY[level].maxPixelRatio);
     play.setQuality(QUALITY[level]);
     backdrop.setQuality(QUALITY[level]);
+    audio.setQuality(level);
     showQuality();
   };
 
@@ -218,6 +224,7 @@ async function boot(): Promise<void> {
       },
     }),
   );
+  debugPanel.addSection(createDebugSound(audio, () => debugPanel.open));
   debugPanel.setRenderer(app.renderer.name);
   play.attachDebugPanel(debugPanel);
   showQuality();

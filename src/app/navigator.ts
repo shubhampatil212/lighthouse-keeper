@@ -4,6 +4,7 @@
  * screen returns. The browser history keeps one spare entry so its back button can be caught;
  * on the title screen, back leaves the page as usual.
  */
+import { emitUi } from './uiEvents';
 import type { SceneManager, SceneParams, StackEntry } from './sceneManager';
 
 export interface Navigator {
@@ -25,6 +26,7 @@ export function createNavigator(scenes: SceneManager, win: Window = window): Nav
     go: (name, params) => scenes.go(name, params),
     reset: (name, params, under = []) => scenes.go(name, params, { stack: under }),
     back() {
+      emitUi({ type: 'back' });
       if (nav.closeDialog()) return;
       if (scenes.current?.back?.()) return;
       void scenes.back();
@@ -33,6 +35,7 @@ export function createNavigator(scenes: SceneManager, win: Window = window): Nav
   };
 
   win.addEventListener('popstate', () => {
+    emitUi({ type: 'back' });
     if (nav.closeDialog() || scenes.current?.back?.() === true) {
       history.pushState(GUARD, '');
       return;
