@@ -3,6 +3,7 @@
  * top one. Focus moves into the dialog, Tab stays inside it, and returns where it was on close.
  */
 import { STRINGS } from '../strings';
+import { focusQuietly } from '../inputModality';
 import { focusables, h, type Child } from './dom';
 import { iconButton } from './controls';
 
@@ -92,6 +93,6 @@ export function openModal(parent: HTMLElement, options: ModalOptions, ...content
   });
   parent.append(element);
   open.push({ modal, options });
-  (focusables(box).find((el) => !el.classList.contains('ui-modal__close')) ?? box).focus();
+  focusQuietly(focusables(box).find((el) => !el.classList.contains('ui-modal__close')) ?? box);
   return modal;
 }

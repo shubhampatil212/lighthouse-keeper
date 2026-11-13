@@ -1,5 +1,7 @@
 /** Shapes of every tunable data object. Numbers themselves live in the sibling files. */
 
+import type { ShipTypeId } from './shipTypes';
+
 export type QualityLevel = 'low' | 'medium' | 'high';
 
 /** What the player picks: a fixed level, or Auto (measures and steps down if frames are slow). */
@@ -35,6 +37,11 @@ export interface ViewportConfig {
   safeRadius: number;
   /** Extra space kept around the safe circle, as a fraction of its radius. */
   edgeMargin: number;
+  /**
+   * After the phone rotates, the size is measured again this long later (iOS reports the new size
+   * late), and the sea is hidden behind a quick fade until then so no stretched frame shows.
+   */
+  rotateSettleMs: number;
 }
 
 export interface LoopConfig {
@@ -122,142 +129,6 @@ export interface BeamFeelConfig {
   startAngle: number;
 }
 
-/** Every ship type in docs/CONTENT.md §2. */
-export type ShipTypeId = 'fishing' | 'cargo' | 'sailboat' | 'ferry' | 'tugboat' | 'smuggler';
-
-export interface ShipTypeConfig {
-  /** Full speed, world units per second. */
-  speed: number;
-  /** Hull length and width, world units. */
-  length: number;
-  width: number;
-  /** Coins for bringing it home (before the difficulty multiplier). */
-  coins: number;
-  /** Multiplies every turn rate (lit and dark). Below 1 = turns slowly. */
-  turnRateMultiplier: number;
-  /** A lit ship avoids a rock when closer than (rock radius + this). */
-  avoidPadding: number;
-  /** If it wrecks, the night fails. */
-  precious: boolean;
-  /** How strongly the wind (the current) pushes it while dark. 1 = like every other ship. */
-  windFactor: number;
-}
-
-/** The tugboat's towing: while lit, it slows dark ships near it (docs/CONTENT.md §2). */
-export interface TugConfig {
-  /** Dark ships closer than this (world units, centre to centre) are slowed. */
-  towRadius: number;
-  /** Their speed is multiplied by this. */
-  speedFactor: number;
-}
-
-/** The smuggler and the coast guard boat that tows it away (docs/CONTENT.md §2). */
-export interface SmugglerConfig {
-  /** Seconds of unbroken light that catch it. */
-  catchSeconds: number;
-  /** Coins for a catch, before the difficulty multiplier. */
-  catchBonus: number;
-  /**
-   * In the dark it crosses the sea toward an exit point on the spawn ring. The exit sits this far
-   * (radians, random between min and max, either side) from the point straight across, so its path
-   * misses the island.
-   */
-  exitOffsetMin: number;
-  exitOffsetMax: number;
-  /** It counts as escaped once this far outside the spawn ring. */
-  escapeMargin: number;
-  /** Coast guard boat: speed out to the smuggler, turn rate, towing speed, and how close it must get to hook on. */
-  coastGuardSpeed: number;
-  coastGuardTurnRate: number;
-  towSpeed: number;
-  hookDistance: number;
-  /** The tow is removed once the smuggler is this far past the spawn ring. */
-  towClearance: number;
-  /** Coast guard boat size (it's drawn and lit like a ship). */
-  coastGuardLength: number;
-  coastGuardWidth: number;
-}
-
-export interface ShipBehaviorConfig {
-  /** Lit ships bound for another harbor steer around the island as if it were a rock of its radius plus this. */
-  islandAvoidPadding: number;
-  /** Dark ships move at this fraction of their full speed. */
-  darkSpeedFactor: number;
-  /** Dark ships' heading error eases toward a random target within ± this (radians). */
-  darkErrorRange: number;
-  /** Seconds between new heading-error targets (random between min and max). */
-  darkErrorRerollMin: number;
-  darkErrorRerollMax: number;
-  /** How fast the heading error eases toward its target, per second. */
-  darkErrorEase: number;
-  /** Heading error a ship spawns with (random within ±). */
-  spawnErrorRange: number;
-  /** Seconds until the first heading-error re-roll after spawning. */
-  spawnErrorDelay: number;
-  /** Spawn heading = toward the harbor ± this (radians). */
-  spawnHeadingJitter: number;
-  /** Turn rates in radians per second (multiplied by the ship type's turnRateMultiplier). */
-  litTurnRate: number;
-  darkTurnRate: number;
-  /** Seconds in the dark before a ship counts as lost (shows the "?" marker). */
-  lostAfter: number;
-  /** Music tension (docs/ART_AUDIO.md): a ship is "in danger" after this long in the dark… */
-  dangerDarkAfter: number;
-  /** …or while dark within this distance of a rock's edge (world units). */
-  dangerReefDistance: number;
-  /** Reef avoidance: only rocks at least this "ahead" (cosine) are avoided. */
-  avoidAheadCos: number;
-  /** Reef avoidance push strength at the rock's edge. */
-  avoidStrength: number;
-  /** How much of the push goes sideways (around the rock) compared to straight away. */
-  avoidTangentFactor: number;
-  /** A ship hits a rock when closer than rock radius + width × this. */
-  hullCollisionFactor: number;
-  /** Seconds between wake points and how many are kept. */
-  wakeInterval: number;
-  wakeLength: number;
-}
-
-export type DifficultyId = 'calm' | 'keeper' | 'storm';
-
-export interface DifficultyConfig {
-  shipSpeed: number;
-  spawnInterval: number;
-  currentStrength: number;
-  /** Wrecks the player can afford; one more fails the night. */
-  wreckAllowance: number;
-  /** Seconds a reef's outline stays visible after the light leaves it. */
-  reefMemory: number;
-  coinReward: number;
-}
-
-export interface SeaConfig {
-  /** Ships appear on this circle around the island (world units). */
-  spawnRadius: number;
-  /** Half-width (radians) of the window an edge spawn is picked from. */
-  edgeSpawnSpread: number;
-  /** The harbor zone around the island when a level doesn't list harbors. */
-  defaultHarborRadius: number;
-  /** Radius a bell buoy lights around its reef. */
-  buoyRadius: number;
-  /** Generated rocks: radius range, rocks per reef and spread around the reef's centre. */
-  rockRadiusMin: number;
-  rockRadiusMax: number;
-  rocksPerReefMin: number;
-  rocksPerReefMax: number;
-  rockSpread: number;
-  /**
-   * Fairness: every rock's outer edge must sit at least this far inside the base beam range, so a
-   * ship drifting toward it is in reach of the light for long enough to be saved.
-   */
-  reefRangeMargin: number;
-  /**
-   * A level's current (after difficulty and wind) may be at most this share of the slowest ship's
-   * dark speed, so a drifting ship always makes headway and the night always ends.
-   */
-  currentMaxShare: number;
-}
-
 /** Bought upgrade levels the player brings into a night. */
 export interface Upgrades {
   lens: number;
@@ -322,133 +193,6 @@ export type HazardDef =
   | { kind: 'pirate'; at: number; angle: number };
 
 export type HazardKind = HazardDef['kind'];
-
-export interface FogConfig {
-  /** The beam's range is multiplied by this for anything it has to reach through fog. */
-  rangeFactor: number;
-  /**
-   * Fairness: no rock may sit behind a fog band (seen from a lamp), and every rock keeps this much
-   * open water from any band, so a ship leaving the fog has time to be lit before it reaches rock.
-   */
-  rockClearance: number;
-}
-
-export interface IcebergConfig {
-  radiusMin: number;
-  radiusMax: number;
-  speedMin: number;
-  speedMax: number;
-  /**
-   * A ship sailing into an iceberg wrecks only if its heading points at the iceberg's centre within
-   * this cosine (0.5 = within 60°). An iceberg drifting into a ship's side shoves it aside instead.
-   */
-  headOnCos: number;
-  /**
-   * Icebergs bounce to stay in the fair zone: their outer edge stays within the reef limit
-   * (base range minus the reef margin) and their inner edge this far outside the harbor.
-   */
-  harborGap: number;
-  /** They also bounce off rocks and other icebergs, keeping at least this much open water between. */
-  laneGap: number;
-}
-
-export interface LightningConfig {
-  /** Seconds between strikes (random between min and max). */
-  intervalMin: number;
-  intervalMax: number;
-  /** Seconds of warning glow before each strike. */
-  warning: number;
-  /** Seconds the whole map stays lit. */
-  flash: number;
-}
-
-export interface StormWavesConfig {
-  /** World units per second; pushes every ship, lit or dark. */
-  push: number;
-  /** Seconds between changes of direction. */
-  period: number;
-  /**
-   * Fairness: on a level with storm waves, rocks must sit this much further inside the beam's reach
-   * than SeaConfig.reefRangeMargin, because dark ships drift faster.
-   */
-  extraReefMargin: number;
-}
-
-export interface WhirlpoolConfig {
-  /** Ships inside this radius are pulled toward the centre. */
-  pullRadius: number;
-  /** Ships whose centre enters this radius are wrecked. */
-  coreRadius: number;
-  /** Pull at the centre (world units per second); it fades to 0 at the edge. */
-  maxPull: number;
-  /** Lit ships steer around the core as if it were a rock of coreRadius, with this much room. */
-  avoidPadding: number;
-}
-
-export interface PirateConfig {
-  length: number;
-  width: number;
-  /** Speeds: patrolling, hunting, and fleeing from the light. */
-  patrolSpeed: number;
-  huntSpeed: number;
-  fleeSpeed: number;
-  /** Turn rate (radians per second). */
-  turnRate: number;
-  /** It circles the island at this distance while it has no prey. */
-  patrolRadius: number;
-  /** It hunts dark ships within this distance of itself. */
-  huntRadius: number;
-  /**
-   * Fairness: it only hunts ships inside the base beam range (so the player can always light them),
-   * and must chase a ship for this long before it can board it. This is the player's reaction window.
-   */
-  boardDelay: number;
-  /** Seconds it keeps away after the light last touched it. */
-  scareSeconds: number;
-  /** It steers around rocks with this much room (it never wrecks; it knows these waters). */
-  avoidPadding: number;
-}
-
-export interface FoghornConfig {
-  /** Ships within this distance of the island are slowed. */
-  radius: number;
-  /** Their speed is multiplied by this. */
-  speedFactor: number;
-  /** Seconds the slow lasts. */
-  duration: number;
-  /** Cooldown at upgrade level 1, and what each further level takes off it. */
-  cooldown: number;
-  cooldownPerLevel: number;
-}
-
-export interface FlareConfig {
-  /** Seconds the whole map stays lit. */
-  seconds: number;
-}
-
-export interface SecondLampConfig {
-  /** Radius of the rocky islet the second tower stands on (ships steer around it). */
-  isletRadius: number;
-  /** Always-lit glow around the second tower. */
-  glowRadius: number;
-  /** How fast the lamp you aren't steering sweeps on its own (radians per second). */
-  sweepSpeed: number;
-}
-
-export interface AbilitiesConfig {
-  foghorn: FoghornConfig;
-  flare: FlareConfig;
-  secondLamp: SecondLampConfig;
-}
-
-export interface HazardsConfig {
-  fog: FogConfig;
-  iceberg: IcebergConfig;
-  lightning: LightningConfig;
-  stormWaves: StormWavesConfig;
-  whirlpool: WhirlpoolConfig;
-  pirate: PirateConfig;
-}
 
 /** The extra task a level asks for its third star (docs/GDD.md §3.5). */
 export type BonusObjectiveDef =
@@ -593,153 +337,37 @@ export interface PlayConfig {
   waitPromptSeconds: number;
 }
 
-/** How the night looks and moves. Drawing only: none of this changes the simulation. */
-export interface RenderFeelConfig {
-  /** The light map is drawn at this fraction of the screen's resolution (it's blurred anyway). */
-  lightMapResolution: number;
-  /** Strength (0–1) of the light added inside the beam, around the island, under buoys and under lanterns. */
-  beamLight: number;
-  islandLight: number;
-  buoyLight: number;
-  lanternLight: number;
-  /** Radius of the small pool of light under a lantern, world units. */
-  lanternPoolRadius: number;
-  /** Strength of the soft halo just outside the cone (the beam's wide edge), 0–1. */
-  beamHalo: number;
-  /** The halo is this many times wider than the cone. */
-  beamHaloWidth: number;
-  /** High quality: how strongly noise makes the beam edge "breathe" (0–1), and how fast it moves. */
-  beamBreath: number;
-  beamBreathSpeed: number;
-  /** Strength of the glow shaft from the lamp glass, and how far along the beam it reaches (fraction of range). */
-  shaftAlpha: number;
-  shaftReach: number;
-  /** Lamp bloom radius (world units) and how much the lamp glass flickers (0–1). */
-  bloomRadius: number;
-  lampFlicker: number;
-  /** Seconds a hull, sail or rock takes to fade in or out when the light reaches or leaves it. */
-  revealFade: number;
-  /** Ship bobbing (world units up and down) and roll (radians), with their speeds. */
-  bobHeight: number;
-  bobSpeed: number;
-  rollAngle: number;
-  rollSpeed: number;
-  /** Lantern glow radius (world units): in the dark, and when lit. */
-  lanternGlowDark: number;
-  lanternGlowLit: number;
-  /** Wake: line width (world units) and brightness at the ship. */
-  wakeWidth: number;
-  wakeAlpha: number;
-  /** "Lost" marker pulse speed. */
-  lostPulseSpeed: number;
-  /** Edge arrows: seconds before a ship appears that its arrow shows, and the arrow's distance from the screen edge (CSS px). */
-  arrowLookAhead: number;
-  arrowInset: number;
-  arrowSize: number;
-  /** Reef memory outline: dash and gap length (world units) and brightness at full memory. */
-  memoryDash: number;
-  memoryGap: number;
-  memoryAlpha: number;
-  /**
-   * High-contrast reefs (accessibility): a brighter, thicker outline in this color, with longer
-   * dashes, that fades `memoryHighLasts` times more slowly than the reef's memory.
-   */
-  memoryHigh: {
-    color: number;
-    alpha: number;
-    width: number;
-    dash: number;
-    gap: number;
-    lasts: number;
-  };
-  /** Reduced motion: fog, waves and the sea move at this fraction of their speed. */
-  reducedMotionSea: number;
-  /** Foam ring around rocks: how far it reaches past the rock and how much it pulses (world units). */
-  foamReach: number;
-  foamPulse: number;
-  /** Fog: drift speeds of the two layers (CSS px per second) and their opacity at fog amount 1. */
-  fogSpeedNear: number;
-  fogSpeedFar: number;
-  fogAlphaNear: number;
-  fogAlphaFar: number;
-  /** Rain and snow particles alive at amount 1 (still limited by the quality's particle cap). */
-  rainDrops: number;
-  snowFlakes: number;
-  /** Effects. */
-  rippleSeconds: number;
-  rippleRadius: number;
-  splinterCount: number;
-  splinterSeconds: number;
-  foamBurstCount: number;
-  foamSeconds: number;
-  coinPopSeconds: number;
-  /** Camera shake on a wreck: strength in CSS px and how long it lasts. */
-  shakeStrength: number;
-  shakeSeconds: number;
-  // Environment hazards and abilities (phase 04).
-  /** Radius of the ring round the island when the island's lamp is the one being steered. */
-  activeLampRing: number;
-  /** Fog band puffs: opacity in the dark, extra opacity where lit, and drift speed. */
-  fogBandAlpha: number;
-  fogBandLitBoost: number;
-  fogBandDrift: number;
-  /** Whirlpool spiral: opacity in the dark and when lit, and turning speed (radians per second). */
-  whirlpoolDarkAlpha: number;
-  whirlpoolLitAlpha: number;
-  whirlpoolSpin: number;
-  /** Storm-wave crests: how many, their length (world units), speed and opacity; seconds the direction arrow shows. */
-  waveStreaks: number;
-  waveCrestLength: number;
-  waveSpeed: number;
-  waveAlpha: number;
-  waveCueSeconds: number;
-  /** Lightning: warning glow opacity, flash opacity and flash length (seconds). */
-  lightningWarnAlpha: number;
-  lightningFlashAlpha: number;
-  lightningFlashSeconds: number;
-  /** Flare: how high it climbs above the lamp (world units) and how long it shows (matches the map light). */
-  flareRise: number;
-  flareSeconds: number;
-  /** Radius of the flare's glow (world units). */
-  flareGlowRadius: number;
-  /** Seconds each foghorn ring takes to roll out. */
-  hornRingSeconds: number;
-}
+// The drawing-only look settings (render feel, harbor styles, vessel cues) live in renderTypes.ts.
+export type {
+  HarborShape,
+  HarborStyleConfig,
+  RenderFeelConfig,
+  VesselFeelConfig,
+} from './renderTypes';
 
-/** Marker shape for a harbor in colorblind mode (docs/ART_AUDIO.md: "never rely on color alone"). */
-export type HarborShape = 'circle' | 'triangle';
+// Hazard and ability settings live in hazardTypes.ts.
+export type {
+  FogConfig,
+  IcebergConfig,
+  LightningConfig,
+  StormWavesConfig,
+  WhirlpoolConfig,
+  PirateConfig,
+  FoghornConfig,
+  FlareConfig,
+  SecondLampConfig,
+  AbilitiesConfig,
+  HazardsConfig,
+} from './hazardTypes';
 
-/** Destination colors for harbors, by harbor index. */
-export interface HarborStyleConfig {
-  /** Normal colors (0xRRGGBB): red and blue. */
-  colors: readonly number[];
-  /** Colorblind mode: blue and orange, plus a shape marker. */
-  colorblindColors: readonly number[];
-  shapes: readonly HarborShape[];
-}
-
-/** How the phase 04 vessel cues look (drawing only; world units and seconds). */
-export interface VesselFeelConfig {
-  /** Destination marker beside a ship's lantern: size, and its offset from the lantern. */
-  destinationSize: number;
-  destinationOffsetX: number;
-  destinationOffsetY: number;
-  /** Smuggler catch ring: radius around the ship and line width. */
-  catchRingRadius: number;
-  catchRingWidth: number;
-  /** Pirate "closing in" cue on its prey: the ring starts this big and shrinks to the hull. */
-  huntRingStart: number;
-  huntRingEnd: number;
-  /** Pirate lantern pulse speed while hunting, at the end of the boarding window (pulses per second). */
-  huntPulse: number;
-  /** Tug tow line and coast guard tow line: width and brightness. */
-  ropeWidth: number;
-  ropeAlpha: number;
-  /** "Slowed by the foghorn" marker: size of its sound arcs. */
-  slowedSize: number;
-  /** Lights ringing each harbor when a night has more than one: how many, and their glow radius. */
-  harborLights: number;
-  harborLightRadius: number;
-  /** A towed smuggler is drawn at this brightness. */
-  towedDim: number;
-}
+// Ship, difficulty and sea settings live in shipTypes.ts.
+export type {
+  ShipTypeId,
+  ShipTypeConfig,
+  TugConfig,
+  SmugglerConfig,
+  ShipBehaviorConfig,
+  DifficultyId,
+  DifficultyConfig,
+  SeaConfig,
+} from './shipTypes';

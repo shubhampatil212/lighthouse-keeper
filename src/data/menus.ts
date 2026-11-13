@@ -6,7 +6,8 @@ export const UI_FEEL: UiFeelConfig = {
   // GDD §8: "a sky gradient sweeping from navy to soft rose over 2 seconds".
   dawnMs: 2000,
   starDelayMs: 900,
-  starIntervalMs: 450,
+  starIntervalMs: 550,
+  starHoldMs: 400,
   toastMs: 2600,
   saveDebounceMs: 400,
   announceGapMs: 1200,
@@ -39,4 +40,5 @@ export const DEFAULT_SETTINGS: GameSettings = {
   highContrastReefs: false,
   largerText: false,
   haptics: true,
+  installHintDismissed: false,
 };

@@ -139,7 +139,7 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
     badge: string,
     ready: boolean,
   ): void => {
-    b.button.hidden = !shown;
+    if (b.button.hidden === shown) b.button.hidden = !shown;
     if (!shown) return;
     if (b.label !== label) {
       b.label = label;
@@ -149,7 +149,21 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
     b.button.classList.toggle('is-cooling', !ready);
   };
 
+  /** Ability labels are rebuilt only when the number in them changes. */
+  let hornWait = -1;
+  let hornLabel = '';
+  let flareCharges = -1;
+  let flareLabel = '';
   let lastKey = '';
+  let lastSaved = 0;
+  let lastPrompt: string | null = null;
+  /** Replays the counter's little pop (the CSS animation restarts when the class is re-added). */
+  const bump = (el: HTMLElement): void => {
+    el.classList.remove('is-bumped');
+    // Reading the size makes the browser notice the removal, so the animation starts again.
+    el.getBoundingClientRect();
+    el.classList.add('is-bumped');
+  };
   return {
     element,
     setLevel(levelCode, levelName) {
@@ -167,6 +181,8 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
         fill.style.transform = `scaleX(${info.total ? 1 - info.spawned / info.total : 0})`;
         saved.replaceChildren(svg(ICONS.anchor), String(info.saved));
         saved.setAttribute('aria-label', STRINGS.hudSaved(info.saved));
+        if (info.saved > lastSaved) bump(saved);
+        lastSaved = info.saved;
         const left = Math.max(0, info.allowance - info.wrecked);
         hulls.replaceChildren(
           ...Array.from({ length: info.allowance }, (_, i) =>
@@ -179,22 +195,18 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
       }
       const hornInfo = info.foghorn;
       const wait = hornInfo ? Math.ceil(hornInfo.cooldown) : 0;
-      setAbility(
-        horn,
-        hornInfo !== null,
-        STRINGS.abilityFoghornLabel(wait),
-        wait > 0 ? String(wait) : '',
-        wait === 0,
-      );
+      if (wait !== hornWait) {
+        hornWait = wait;
+        hornLabel = STRINGS.abilityFoghornLabel(wait);
+      }
+      setAbility(horn, hornInfo !== null, hornLabel, wait > 0 ? String(wait) : '', wait === 0);
       horn.ring?.set(hornInfo && hornInfo.full > 0 ? hornInfo.cooldown / hornInfo.full : 0);
       const charges = info.flares ?? 0;
-      setAbility(
-        flare,
-        info.flares !== null,
-        STRINGS.abilityFlareLabel(charges),
-        String(charges),
-        charges > 0,
-      );
+      if (charges !== flareCharges) {
+        flareCharges = charges;
+        flareLabel = STRINGS.abilityFlareLabel(charges);
+      }
+      setAbility(flare, info.flares !== null, flareLabel, String(charges), charges > 0);
       setAbility(
         lamp,
         info.lamp !== null,
@@ -207,6 +219,8 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
       element.classList.toggle('is-left-handed', on);
     },
     prompt(text) {
+      if (text === lastPrompt) return;
+      lastPrompt = text;
       promptText.hidden = text === null;
       if (text !== null) promptText.textContent = text;
     },

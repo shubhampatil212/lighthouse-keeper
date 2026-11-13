@@ -3,6 +3,7 @@
  * (or nothing, for opaque screens like the sea chart) drawing behind it.
  */
 import type { Scene, SceneParams } from '../app/sceneManager';
+import { focusQuietly } from '../ui/inputModality';
 import { focusables } from '../ui/kit/dom';
 import type { GameContext } from './context';
 
@@ -32,10 +33,10 @@ export function menuScene(
       view = build(params);
       view.root.classList.add('screen');
       ctx.uiRoot.append(view.root);
-      // Focus the screen's first control so keyboard players can start at once.
+      // Focus the screen's first control so keyboard players can start at once (no ring after a tap).
       const first =
         view.root.querySelector<HTMLElement>('[data-autofocus]') ?? focusables(view.root)[0];
-      first?.focus({ preventScroll: true });
+      if (first) focusQuietly(first);
     },
     exit() {
       view?.dispose?.();

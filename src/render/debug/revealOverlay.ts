@@ -20,9 +20,11 @@ export function createRevealOverlay(
 ): RevealOverlay {
   const g = new Graphics({ label: 'revealAll' });
   layer.addChild(g);
+  let drawn = false;
   return {
     draw(world, ships, on, pixel) {
-      g.clear();
+      if (drawn) g.clear();
+      drawn = on && world !== null;
       if (!on || !world) return;
       for (const rock of world.state.rocks) {
         if (!rock.lit)

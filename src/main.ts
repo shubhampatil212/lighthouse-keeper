@@ -11,19 +11,22 @@ import './ui/screens.css';
 import './ui/hud.css';
 import { wireAudio } from './app/audioWiring';
 import { settingsFromAddress } from './app/debugParams';
+import { withGame, wireDebug } from './app/debugWiring';
 import { createFadeTransition } from './app/fade';
+import { openFirstScreen } from './app/firstScreen';
+import { loadFonts } from './app/fonts';
 import { createGame } from './app/game';
 import { createGameLoop } from './app/gameLoop';
-import { islandBuildings, unlockAll } from './app/progress';
+import { guardMobileGestures } from './app/mobileGuards';
+import { islandBuildings } from './app/progress';
+import { registerServiceWorker } from './app/pwa';
+import { createQualityControl } from './app/qualityControl';
 import { loadGame } from './app/saveWiring';
 import { createSceneManager } from './app/sceneManager';
-import { screenJump } from './app/screenJump';
 import type { Viewport } from './app/viewport';
 import { watchViewport } from './app/viewportWatcher';
 import {
-  AUTO_QUALITY,
   DEMO_LEVELS,
-  DEMO_UPGRADES,
   LEVEL_1_2,
   LEVELS,
   LOOP,
@@ -31,20 +34,17 @@ import {
   SCENE_TRANSITION,
   VIEWPORT,
 } from './data';
-import type { QualityChoice, QualityLevel } from './data/types';
+import type { QualityLevel } from './data/types';
 import type { GameSettings } from './data/uiTypes';
 import { createCodeArt } from './render/art/codeArt';
 import { applyViewport, createLayers } from './render/layers';
 import { PALETTE } from './render/palette';
-import { createAutoQuality, type AutoQuality } from './render/quality';
 import { createBackdrop } from './scenes/backdrop';
 import { SCENE } from './scenes/context';
 import { createPlayScene, type PlayPrefs } from './scenes/play';
 import { createSandboxScene } from './scenes/sandbox';
 import { createBootScreen } from './ui/bootScreen';
-import { createDebugCampaign } from './ui/debugCampaign';
-import { createDebugPanel, DEFAULT_DEBUG_SETTINGS, type DebugSettings } from './ui/debugPanel';
-import { createDebugSound } from './ui/debugSound';
+import { DEFAULT_DEBUG_SETTINGS } from './ui/debugPanel';
 import { createFpsMeter } from './ui/fpsMeter';
 import { STRINGS } from './ui/strings';
 
@@ -58,12 +58,16 @@ async function boot(): Promise<void> {
   const host = requireElement('stage');
   const fade = requireElement('fade');
   const uiRoot = requireElement('ui');
-  // On the page itself (not in #ui) so it shows above the fade while loading.
+  // Already on the page (index.html draws it before any script loads); this takes it over.
   const bootScreen = createBootScreen(document.body);
   bootScreen.setProgress(0.15);
+  registerServiceWorker();
+  const fonts = loadFonts().then(() => {
+    bootScreen.setProgress(0.45);
+  });
 
   const params = new URLSearchParams(location.search);
-  const debug = params.has('debug');
+  const debugOpen = params.has('debug');
   const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
   const addressDebug = settingsFromAddress(params, DEFAULT_DEBUG_SETTINGS);
 
@@ -73,14 +77,6 @@ async function boot(): Promise<void> {
     colorblind: addressDebug.colorblind,
   });
   const { settings, progress } = saved;
-  let debugSettings: DebugSettings = addressDebug;
-  const withGame = (d: DebugSettings, s: GameSettings): DebugSettings => ({
-    ...d,
-    difficulty: s.difficulty,
-    style: s.beamControl,
-    quality: s.quality,
-    colorblind: s.colorblind,
-  });
   const prefsOf = (s: GameSettings): PlayPrefs => ({
     leftHanded: s.leftHanded,
     reducedMotion: s.reducedMotion,
@@ -92,20 +88,33 @@ async function boot(): Promise<void> {
   });
 
   // Graphics quality: a fixed level, or Auto (starts at Medium and steps down if frames are slow).
-  let qualityChoice: QualityChoice = settings.get().quality;
-  let auto: AutoQuality | null = null;
-  const startLevel = (choice: QualityChoice): QualityLevel => {
-    auto = choice === 'auto' ? createAutoQuality(AUTO_QUALITY) : null;
-    return auto ? auto.level : (choice as QualityLevel);
-  };
-  let qualityLevel = startLevel(qualityChoice);
+  let applyQuality: (level: QualityLevel) => void = () => undefined;
+  let showQuality: () => void = () => undefined;
+  const quality = createQualityControl(
+    settings.get().quality,
+    (level) => {
+      applyQuality(level);
+    },
+    () => {
+      showQuality();
+    },
+  );
 
   const app = new Application();
   let onViewport: (vp: Viewport) => void = () => undefined;
-  const viewport = watchViewport(VIEWPORT, QUALITY[qualityLevel].maxPixelRatio, (vp) => {
-    onViewport(vp);
-  });
+  const viewport = watchViewport(
+    VIEWPORT,
+    QUALITY[quality.level].maxPixelRatio,
+    (vp) => {
+      onViewport(vp);
+    },
+    // While the phone turns, the sea hides behind a quick fade so no stretched frame shows.
+    (settling) => {
+      host.classList.toggle('is-rotating', settling);
+    },
+  );
   const first = viewport.current;
+  guardMobileGestures(host);
 
   await app.init({
     width: first.width,
@@ -119,7 +128,8 @@ async function boot(): Promise<void> {
     // Pixi picks (WebGL today). ?renderer=webgpu asks for WebGPU, for testing the WebGPU shaders.
     ...(params.get('renderer') === 'webgpu' ? { preference: 'webgpu' as const } : {}),
   });
-  bootScreen.setProgress(0.7);
+  await fonts;
+  bootScreen.setProgress(0.75);
   app.ticker.stop();
   app.canvas.setAttribute('aria-label', STRINGS.canvasLabel);
   app.canvas.setAttribute('role', 'img');
@@ -137,7 +147,7 @@ async function boot(): Promise<void> {
     pixi: app.renderer,
     layers,
     art,
-    quality: QUALITY[qualityLevel],
+    quality: QUALITY[quality.level],
   });
   const game = createGame({
     scenes,
@@ -157,14 +167,14 @@ async function boot(): Promise<void> {
     game.ctx.toast(notice);
     notice = null;
   });
-  audio.setQuality(qualityLevel);
+  audio.setQuality(quality.level);
 
   // ?level=1-2 or a debug demo such as ?level=demo-cove (see src/data/levels/demos.ts) plays at once.
   const levelParam = params.get('level') ?? '';
   const demo = DEMO_LEVELS[levelParam];
   const directLevel = LEVELS[levelParam] ?? demo ?? (params.has('seed') ? LEVEL_1_2 : null);
   // The sandbox is a debug tool: dev builds, or ?debug in a production build.
-  const sandbox = location.hash === '#sandbox' && (import.meta.env.DEV || debug);
+  const sandbox = location.hash === '#sandbox' && (import.meta.env.DEV || debugOpen);
   const sceneOptions = {
     layers,
     pixi: app.renderer,
@@ -172,10 +182,10 @@ async function boot(): Promise<void> {
     canvas: app.canvas,
     uiRoot,
     viewport: () => viewport.current,
-    showSafeRing: debug,
+    showSafeRing: debugOpen,
     seed: Number.isFinite(seedParam) ? seedParam >>> 0 : null,
-    settings: withGame(debugSettings, settings.get()),
-    quality: QUALITY[qualityLevel],
+    settings: withGame(addressDebug, settings.get()),
+    quality: QUALITY[quality.level],
     prefs: prefsOf(settings.get()),
     backdrop,
     sound: audio,
@@ -190,51 +200,28 @@ async function boot(): Promise<void> {
   });
 
   const fps = createFpsMeter(uiRoot);
-  const showQuality = (): void => {
-    const status = auto
-      ? `auto → ${qualityLevel}${auto.settled ? '' : ' (measuring)'}`
-      : qualityLevel;
-    debugPanel.setQualityStatus(status);
+  const debug = wireDebug({
+    open: debugOpen,
+    initial: addressDebug,
+    settings,
+    progress,
+    play,
+    audio,
+    rendererName: app.renderer.name,
+    jump: (levelId) => {
+      game.ctx.startNight(levelId);
+    },
+  });
+  showQuality = () => {
+    debug.panel.setQualityStatus(quality.status());
   };
-  const applyQuality = (level: QualityLevel): void => {
-    qualityLevel = level;
+  applyQuality = (level) => {
     viewport.setMaxPixelRatio(QUALITY[level].maxPixelRatio);
     play.setQuality(QUALITY[level]);
     backdrop.setQuality(QUALITY[level]);
     audio.setQuality(level);
     showQuality();
   };
-
-  const debugPanel = createDebugPanel(document.body, debug, {
-    onChange: (next) => {
-      debugSettings = next;
-      // The panel's difficulty, control style, quality and colorblind switches are player settings too.
-      settings.update((s) => ({
-        ...s,
-        difficulty: next.difficulty,
-        beamControl: next.style,
-        quality: next.quality,
-        colorblind: next.colorblind,
-      }));
-      play.applySettings(withGame(next, settings.get()));
-    },
-    onRestart: (newSeed) => {
-      play.restart(newSeed);
-    },
-  });
-  debugPanel.addSection(
-    createDebugCampaign({
-      unlockAll: () => {
-        progress.update((p) => unlockAll(p, settings.get().difficulty));
-      },
-      jump: (levelId) => {
-        game.ctx.startNight(levelId);
-      },
-    }),
-  );
-  debugPanel.addSection(createDebugSound(audio, () => debugPanel.open));
-  debugPanel.setRenderer(app.renderer.name);
-  play.attachDebugPanel(debugPanel);
   showQuality();
 
   // Settings apply the moment they change (docs/SCREENS.md).
@@ -244,14 +231,11 @@ async function boot(): Promise<void> {
     root.toggle('large-text', s.largerText);
     fps.show(s.showFps);
     backdrop.setReducedMotion(s.reducedMotion);
-    if (s.quality !== qualityChoice) {
-      qualityChoice = s.quality;
-      applyQuality(startLevel(qualityChoice));
-    }
-    const merged = withGame(debugSettings, s);
+    quality.choose(s.quality);
+    const merged = withGame(debug.settings(), s);
     play.applySettings(merged);
     play.applyPrefs(prefsOf(s));
-    debugPanel.setSettings(merged);
+    debug.panel.setSettings(merged);
   };
   settings.subscribe(applySettings);
   applySettings(settings.get());
@@ -267,11 +251,11 @@ async function boot(): Promise<void> {
     applyViewport(layers, vp);
     scenes.resize(vp);
     backdrop.resize(vp);
-    debugPanel.setViewport(vp);
+    debug.panel.setViewport(vp);
   };
   onViewport(first);
 
-  let lastFrame: number | null = null;
+  let firstFrame = true;
   createGameLoop(LOOP, {
     update: (dt) => {
       scenes.update(dt);
@@ -280,38 +264,26 @@ async function boot(): Promise<void> {
       scenes.render(alpha);
       app.renderer.render(app.stage);
       const now = performance.now();
-      debugPanel.frame(now);
+      debug.panel.frame(now);
       fps.frame(now);
-      if (auto && !auto.settled && lastFrame !== null) {
-        const dropped = auto.sample(now - lastFrame);
-        // While measuring, keep the panel's "auto → level" text current (it says when Auto settles).
-        if (dropped) applyQuality(dropped);
-        else showQuality();
+      quality.frame(now);
+      if (firstFrame) {
+        firstFrame = false;
+        bootScreen.setProgress(0.9);
       }
-      lastFrame = now;
     },
   }).start();
 
-  // First screen: the sandbox, a night straight away (?level / ?seed), one screen (?screen=), or boot.
-  const title = { name: SCENE.title, params: {} };
-  const jump = screenJump(params);
-  if (sandbox) {
-    bootScreen.remove();
-    await scenes.go(SCENE.sandbox);
-  } else if (directLevel) {
-    bootScreen.remove();
-    if (!progress.get().started) progress.update((p) => ({ ...p, started: true }));
-    await game.ctx.nav.reset(
-      SCENE.play,
-      { level: directLevel, upgrades: demo ? DEMO_UPGRADES : undefined },
-      [title],
-    );
-  } else if (jump) {
-    bootScreen.remove();
-    await game.ctx.nav.reset(jump.name, jump.params, jump.under);
-  } else {
-    await scenes.go(SCENE.boot);
-  }
+  await openFirstScreen({
+    params,
+    sandbox,
+    directLevel,
+    demo: demo !== undefined,
+    scenes,
+    game,
+    progress,
+    bootScreen,
+  });
 }
 
 boot().catch((error: unknown) => {

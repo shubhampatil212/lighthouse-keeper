@@ -9,9 +9,12 @@
  *   uView   = island x, island y, screen width, screen height (CSS px)
  *   uBeam   = angle, half-angle, range, island glow radius (radians, world units)
  *   uLamp   = lamp x, lamp y (CSS px), reflection strength, island radius (world units)
+ *   uBeam2  = the second lighthouse's angle, half-angle, range, glow radius (radians, world units)
+ *   uLamp2  = the second lighthouse's x, y (world units), on (0 or 1), unused
  *   uDeep, uMid, uCrest = region colors (rgb)
- * Pixi binds resources by name, so the WGSL uniform variable must be called `waterUniforms`, the same
- * as the filter's resource key in water.ts.
+ * It's drawn as one screen-sized mesh (a single pass), not a filter, which would first draw the sprite
+ * into a texture of its own. Pixi binds resources by name, so the WGSL uniform variable must be called
+ * `waterUniforms`, the same as the shader's resource key in water.ts.
  */
 
 export const WATER_UNIFORM_NAMES = [
@@ -19,6 +22,8 @@ export const WATER_UNIFORM_NAMES = [
   'uView',
   'uBeam',
   'uLamp',
+  'uBeam2',
+  'uLamp2',
   'uDeep',
   'uMid',
   'uCrest',
@@ -27,16 +32,15 @@ export const WATER_UNIFORM_NAMES = [
 export const WATER_VERTEX_GLSL = `in vec2 aPosition;
 out vec2 vScreen;
 
-uniform vec4 uOutputFrame;
-uniform vec4 uOutputTexture;
+uniform mat3 uProjectionMatrix;
+uniform mat3 uWorldTransformMatrix;
+uniform mat3 uTransformMatrix;
 
 void main(void)
 {
-    vec2 position = aPosition * uOutputFrame.zw + uOutputFrame.xy;
-    vScreen = position;
-    position.x = position.x * (2.0 / uOutputTexture.x) - 1.0;
-    position.y = position.y * (2.0 * uOutputTexture.z / uOutputTexture.y) - uOutputTexture.z;
-    gl_Position = vec4(position, 0.0, 1.0);
+    vec3 screen = uWorldTransformMatrix * uTransformMatrix * vec3(aPosition, 1.0);
+    vScreen = screen.xy;
+    gl_Position = vec4((uProjectionMatrix * screen).xy, 0.0, 1.0);
 }
 `;
 
@@ -47,6 +51,8 @@ uniform vec4 uParams;
 uniform vec4 uView;
 uniform vec4 uBeam;
 uniform vec4 uLamp;
+uniform vec4 uBeam2;
+uniform vec4 uLamp2;
 uniform vec4 uDeep;
 uniform vec4 uMid;
 uniform vec4 uCrest;
@@ -65,14 +71,20 @@ float vnoise(vec2 p) {
                mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
-float lightAt(vec2 w) {
+float beamLight(vec2 w, vec4 beam) {
     float d = length(w);
-    float a = atan(w.y, w.x) - uBeam.x;
+    float a = atan(w.y, w.x) - beam.x;
     a = abs(atan(sin(a), cos(a)));
-    float cone = (1.0 - smoothstep(uBeam.y * 0.8, uBeam.y * 1.15, a))
-               * (1.0 - smoothstep(uBeam.z * 0.8, uBeam.z * 1.1, d));
-    float glow = 1.0 - smoothstep(uBeam.w * 0.55, uBeam.w * 1.2, d);
+    float cone = (1.0 - smoothstep(beam.y * 0.8, beam.y * 1.15, a))
+               * (1.0 - smoothstep(beam.z * 0.8, beam.z * 1.1, d));
+    float glow = 1.0 - smoothstep(beam.w * 0.55, beam.w * 1.2, d);
     return max(cone, glow * 0.8);
+}
+
+float lightAt(vec2 w) {
+    float light = beamLight(w, uBeam);
+    if (uLamp2.z > 0.5) light = max(light, beamLight(w - uLamp2.xy, uBeam2));
+    return light;
 }
 
 void main(void)
@@ -125,13 +137,17 @@ void main(void)
 `;
 
 export const WATER_WGSL = `
-struct GlobalFilterUniforms {
-  uInputSize: vec4<f32>,
-  uInputPixel: vec4<f32>,
-  uInputClamp: vec4<f32>,
-  uOutputFrame: vec4<f32>,
-  uGlobalFrame: vec4<f32>,
-  uOutputTexture: vec4<f32>,
+struct GlobalUniforms {
+  uProjectionMatrix: mat3x3<f32>,
+  uWorldTransformMatrix: mat3x3<f32>,
+  uWorldColorAlpha: vec4<f32>,
+  uResolution: vec2<f32>,
+};
+
+struct LocalUniforms {
+  uTransformMatrix: mat3x3<f32>,
+  uColor: vec4<f32>,
+  uRound: f32,
 };
 
 struct WaterUniforms {
@@ -139,15 +155,16 @@ struct WaterUniforms {
   uView: vec4<f32>,
   uBeam: vec4<f32>,
   uLamp: vec4<f32>,
+  uBeam2: vec4<f32>,
+  uLamp2: vec4<f32>,
   uDeep: vec4<f32>,
   uMid: vec4<f32>,
   uCrest: vec4<f32>,
 };
 
-@group(0) @binding(0) var<uniform> gfu: GlobalFilterUniforms;
-@group(0) @binding(1) var uTexture: texture_2d<f32>;
-@group(0) @binding(2) var uSampler: sampler;
-@group(1) @binding(0) var<uniform> waterUniforms: WaterUniforms;
+@group(0) @binding(0) var<uniform> globalUniforms: GlobalUniforms;
+@group(1) @binding(0) var<uniform> localUniforms: LocalUniforms;
+@group(2) @binding(0) var<uniform> waterUniforms: WaterUniforms;
 
 struct VSOutput {
   @builtin(position) position: vec4<f32>,
@@ -156,11 +173,9 @@ struct VSOutput {
 
 @vertex
 fn mainVertex(@location(0) aPosition: vec2<f32>) -> VSOutput {
-  var position = aPosition * gfu.uOutputFrame.zw + gfu.uOutputFrame.xy;
-  let screen = position;
-  position.x = position.x * (2.0 / gfu.uOutputTexture.x) - 1.0;
-  position.y = position.y * (2.0 * gfu.uOutputTexture.z / gfu.uOutputTexture.y) - gfu.uOutputTexture.z;
-  return VSOutput(vec4<f32>(position, 0.0, 1.0), screen);
+  let screen = globalUniforms.uWorldTransformMatrix * localUniforms.uTransformMatrix * vec3<f32>(aPosition, 1.0);
+  let clip = globalUniforms.uProjectionMatrix * screen;
+  return VSOutput(vec4<f32>(clip.xy, 0.0, 1.0), screen.xy);
 }
 
 fn hash(pIn: vec2<f32>) -> f32 {
@@ -177,14 +192,22 @@ fn vnoise(p: vec2<f32>) -> f32 {
              mix(hash(i + vec2<f32>(0.0, 1.0)), hash(i + vec2<f32>(1.0, 1.0)), u.x), u.y);
 }
 
-fn lightAt(w: vec2<f32>) -> f32 {
+fn beamLight(w: vec2<f32>, beam: vec4<f32>) -> f32 {
   let d = length(w);
-  var a = atan2(w.y, w.x) - waterUniforms.uBeam.x;
+  var a = atan2(w.y, w.x) - beam.x;
   a = abs(atan2(sin(a), cos(a)));
-  let cone = (1.0 - smoothstep(waterUniforms.uBeam.y * 0.8, waterUniforms.uBeam.y * 1.15, a))
-           * (1.0 - smoothstep(waterUniforms.uBeam.z * 0.8, waterUniforms.uBeam.z * 1.1, d));
-  let glow = 1.0 - smoothstep(waterUniforms.uBeam.w * 0.55, waterUniforms.uBeam.w * 1.2, d);
+  let cone = (1.0 - smoothstep(beam.y * 0.8, beam.y * 1.15, a))
+           * (1.0 - smoothstep(beam.z * 0.8, beam.z * 1.1, d));
+  let glow = 1.0 - smoothstep(beam.w * 0.55, beam.w * 1.2, d);
   return max(cone, glow * 0.8);
+}
+
+fn lightAt(w: vec2<f32>) -> f32 {
+  var light = beamLight(w, waterUniforms.uBeam);
+  if (waterUniforms.uLamp2.z > 0.5) {
+    light = max(light, beamLight(w - waterUniforms.uLamp2.xy, waterUniforms.uBeam2));
+  }
+  return light;
 }
 
 @fragment

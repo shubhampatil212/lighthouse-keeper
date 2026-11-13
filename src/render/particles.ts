@@ -1,6 +1,8 @@
 /**
  * Pooled particles on a Pixi ParticleContainer (one draw call per texture). Every system takes from
- * one shared budget, so all particles on screen together stay under the quality level's cap.
+ * one shared budget, so all particles on screen together stay under the quality level's cap. A spent
+ * particle stays in the container, shrunk to nothing, until it's used again: adding and removing
+ * particles would make Pixi rebuild the container's buffers.
  */
 import { Particle, ParticleContainer, type Texture } from 'pixi.js';
 
@@ -47,7 +49,10 @@ export function createParticles(
   const spare: Mote[] = [];
 
   const release = (mote: Mote): void => {
-    container.removeParticle(mote.particle);
+    const p = mote.particle;
+    p.scaleX = 0;
+    p.scaleY = 0;
+    p.alpha = 0;
     spare.push(mote);
     budget.used--;
   };
@@ -60,24 +65,33 @@ export function createParticles(
     spawn() {
       if (budget.used >= budget.cap) return null;
       budget.used++;
-      const mote = spare.pop() ?? {
-        particle: new Particle({ texture, anchorX: 0.5, anchorY: 0.5 }),
-        vx: 0,
-        vy: 0,
-        spin: 0,
-        age: 0,
-        life: 1,
-        a: 0,
-        b: 0,
-      };
+      let mote = spare.pop();
+      if (!mote) {
+        mote = {
+          particle: new Particle({ texture, anchorX: 0.5, anchorY: 0.5 }),
+          vx: 0,
+          vy: 0,
+          spin: 0,
+          age: 0,
+          life: 1,
+          a: 0,
+          b: 0,
+        };
+        container.addParticle(mote.particle);
+      }
       const p = mote.particle;
       p.rotation = 0;
       p.scaleX = 1;
       p.scaleY = 1;
       p.alpha = 1;
       p.tint = 0xffffff;
-      Object.assign(mote, { vx: 0, vy: 0, spin: 0, age: 0, life: 1, a: 0, b: 0 });
-      container.addParticle(p);
+      mote.vx = 0;
+      mote.vy = 0;
+      mote.spin = 0;
+      mote.age = 0;
+      mote.life = 1;
+      mote.a = 0;
+      mote.b = 0;
       live.push(mote);
       return mote;
     },
@@ -86,7 +100,9 @@ export function createParticles(
         const mote = live[i];
         if (!mote) continue;
         if (!step(mote)) {
-          live.splice(i, 1);
+          // Swap-remove: order doesn't matter, and it avoids shifting the whole list.
+          const last = live.pop();
+          if (last && last !== mote) live[i] = last;
           release(mote);
         }
       }

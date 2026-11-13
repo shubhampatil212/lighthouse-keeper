@@ -2,7 +2,7 @@
  * Layer 9, effects: ripple rings, foam bursts, splinters (or ice shards), coin pops and camera shake
  * (none with reduced motion). Which effect answers which simulation event is in effectEvents.ts.
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { BitmapText, Container, Graphics } from 'pixi.js';
 import type { RenderFeelConfig } from '../data/types';
 import type { SimEvent } from '../sim/events';
 import type { World } from '../sim/world';
@@ -27,7 +27,8 @@ export interface FxKit {
   burst(x: number, y: number, count: number, speed: number, tint: number): void;
   /** Flying pieces: wood splinters by default, or any tints (ice shards). */
   splinters(x: number, y: number, tints?: readonly number[]): void;
-  pop(x: number, y: number, text: string, color: number): void;
+  /** Coins rising from a point; `delay` seconds before it shows. */
+  pop(x: number, y: number, text: string, color: number, delay?: number): void;
   shake(): void;
 }
 
@@ -55,11 +56,20 @@ interface Ring {
 }
 
 interface CoinPop {
-  text: Text;
+  text: BitmapText;
   x: number;
   y: number;
   age: number;
 }
+
+/** Coin pops share one bitmap font (white, tinted per pop), so a pop never builds a new texture. */
+const POP_STYLE = {
+  fontFamily: 'Karla, sans-serif',
+  fontWeight: '700',
+  fontSize: 13,
+  fill: 0xffffff,
+  stroke: { color: 0x0a222c, width: 2.5 },
+} as const;
 
 const SPLINTER_COLORS = [0x8a6a45, 0x6b4f33, 0xa4825a];
 const GRAVITY_ISH = 18;
@@ -78,9 +88,12 @@ export function createEffects(
   layer.addChild(ringGraphics, foam.container, splinters.container, pops);
 
   const popList: CoinPop[] = [];
+  const spareText: BitmapText[] = [];
+  const shakeAt = { x: 0, y: 0 };
   let reducedMotion = false;
   let shakeAge = Infinity;
   let textResolution = 2;
+  let ringsDrawn = false;
 
   const ring = (
     x: number,
@@ -127,21 +140,26 @@ export function createEffects(
     }
   };
 
-  const pop = (x: number, y: number, label: string, color: number): void => {
-    const text = new Text({
-      text: label,
-      anchor: 0.5,
-      resolution: textResolution,
-      style: {
-        fontFamily: 'Karla, sans-serif',
-        fontWeight: '700',
-        fontSize: 13,
-        fill: color,
-        stroke: { color: 0x0a222c, width: 2.5 },
-      },
-    });
-    pops.addChild(text);
-    popList.push({ text, x, y: y - 14, age: 0 });
+  const pop = (x: number, y: number, label: string, color: number, delay = 0): void => {
+    let text = spareText.pop();
+    if (!text) {
+      text = new BitmapText({ text: label, anchor: 0.5, style: POP_STYLE });
+      text.resolution = textResolution;
+      pops.addChild(text);
+    }
+    text.text = label;
+    text.tint = color;
+    text.visible = false;
+    popList.push({ text, x, y: y - 14, age: -delay });
+  };
+
+  const retire = (index: number): void => {
+    const done = popList[index];
+    if (!done) return;
+    done.text.visible = false;
+    spareText.push(done.text);
+    const last = popList.pop();
+    if (last && last !== done) popList[index] = last;
   };
 
   const kit: FxKit = {
@@ -163,13 +181,15 @@ export function createEffects(
     },
     update(dt) {
       shakeAge += dt;
-      ringGraphics.clear();
+      if (ringsDrawn) ringGraphics.clear();
+      ringsDrawn = rings.length > 0;
       for (let i = rings.length - 1; i >= 0; i--) {
         const r = rings[i];
         if (!r) continue;
         r.age += dt;
         if (r.age >= r.life) {
-          rings.splice(i, 1);
+          const last = rings.pop();
+          if (last && last !== r) rings[i] = last;
           continue;
         }
         if (r.age < 0) continue;
@@ -212,20 +232,22 @@ export function createEffects(
         const pop = popList[i];
         if (!pop) continue;
         pop.age += dt;
+        if (pop.age < 0) continue;
         const t = pop.age / feel.coinPopSeconds;
         if (t >= 1) {
-          pop.text.destroy();
-          popList.splice(i, 1);
+          retire(i);
           continue;
         }
-        const grow = t < 0.15 ? 0.6 + (t / 0.15) * 0.5 : 1.1 - Math.min(0.1, (t - 0.15) * 0.4);
+        pop.text.visible = true;
+        // Pops up past full size, then settles back (an ease-out overshoot).
+        const grow = t < 0.12 ? 0.5 + (t / 0.12) * 0.75 : 1 + 0.25 * Math.exp(-(t - 0.12) * 18);
         pop.text.position.set(pop.x, pop.y - t * 22);
         pop.text.scale.set(grow);
         pop.text.alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
       }
     },
     shake() {
-      return shakeOffset(shakeAge, feel.shakeSeconds, feel.shakeStrength);
+      return shakeOffset(shakeAge, feel.shakeSeconds, feel.shakeStrength, feel.shakeRise, shakeAt);
     },
     setReducedMotion(on) {
       reducedMotion = on;
@@ -234,14 +256,14 @@ export function createEffects(
     setTextResolution(resolution) {
       textResolution = resolution;
       for (const pop of popList) pop.text.resolution = resolution;
+      for (const text of spareText) text.resolution = resolution;
     },
     clear() {
       rings.length = 0;
       ringGraphics.clear();
       splinters.clear();
       foam.clear();
-      for (const pop of popList) pop.text.destroy();
-      popList.length = 0;
+      while (popList.length > 0) retire(popList.length - 1);
       shakeAge = Infinity;
     },
     destroy() {

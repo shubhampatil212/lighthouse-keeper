@@ -18,7 +18,7 @@ export const BEAM_UPGRADES: BeamUpgradeConfig = {
 
 /** How the beam moves and what counts as "in the light" (GDD §3.1, §8). */
 export const BEAM_FEEL: BeamFeelConfig = {
-  easeRate: 10,
+  easeRate: 8,
   snapAngle: 0.0005,
   edgeTolerance: 4,
   startAngle: -Math.PI / 2,

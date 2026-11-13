@@ -9,21 +9,10 @@ import type { SfxId } from '../data/soundTypes';
 import type { GameSettings } from '../data/uiTypes';
 import { glide } from './synth/envelope';
 import { panner } from './synth/filters';
-import { createReverb } from './synth/reverb';
 import type { Patch } from './synth/voices';
+import { buildBuses, curve, duckNode, type Buses, type BusName } from './buses';
 
-export type BusName = 'master' | 'music' | 'sfx' | 'ambience';
-
-export interface Buses {
-  master: GainNode;
-  music: GainNode;
-  sfx: GainNode;
-  ambience: GainNode;
-  /** Reverb inputs: the long one for music, and long and short ones for effects. */
-  musicEcho: AudioNode;
-  sfxEcho: AudioNode;
-  sfxRoom: AudioNode;
-}
+export type { Buses, BusName } from './buses';
 
 /** One playing sound effect. `pitch` is its random ±3% factor; `at` is when it starts. */
 export interface Voice extends Patch {
@@ -60,48 +49,6 @@ interface Playing {
   done: boolean;
 }
 
-const curve = (value: number): number =>
-  Math.pow(Math.max(0, Math.min(100, value)) / 100, AUDIO.volumeCurve);
-
-function buildBuses(ctx: AudioContext): Buses {
-  const c = AUDIO.compressor;
-  const comp = ctx.createDynamicsCompressor();
-  comp.threshold.value = c.thresholdDb;
-  comp.knee.value = c.kneeDb;
-  comp.ratio.value = c.ratio;
-  comp.attack.value = c.attack;
-  comp.release.value = c.release;
-  const master = ctx.createGain();
-  master.connect(comp).connect(ctx.destination);
-  const music = ctx.createGain();
-  const duck = ctx.createGain();
-  duck.gain.value = 1;
-  music.connect(duck).connect(master);
-  const sfx = ctx.createGain();
-  sfx.connect(master);
-  const ambience = ctx.createGain();
-  ambience.connect(master);
-  const echo = (into: AudioNode, seconds: number): AudioNode => {
-    const reverb = createReverb(ctx, seconds);
-    const level = ctx.createGain();
-    level.gain.value = AUDIO.reverbSend;
-    reverb.connect(level).connect(into);
-    return reverb;
-  };
-  const buses: Buses = {
-    master,
-    music,
-    sfx,
-    ambience,
-    musicEcho: echo(music, AUDIO.reverbLong),
-    sfxEcho: echo(sfx, AUDIO.reverbLong),
-    sfxRoom: echo(sfx, AUDIO.reverbShort),
-  };
-  duckNodes.set(buses, duck);
-  return buses;
-}
-
-const duckNodes = new WeakMap<Buses, GainNode>();
 const GESTURES = ['pointerdown', 'pointerup', 'touchend', 'keydown', 'click'] as const;
 
 export function createAudioEngine(win: Window = window): AudioEngine {
@@ -144,21 +91,41 @@ export function createAudioEngine(win: Window = window): AudioEngine {
       blip.start();
       const ready = ctx;
       const readyBuses = buses;
+      // A phone call or another app can stop the sound ("interrupted" on iOS); the browser may only
+      // let it start again inside a tap, so listen for one whenever it stops while the page is shown.
+      ready.addEventListener('statechange', () => {
+        if (ready.state !== 'running' && ready.state !== 'closed' && !win.document.hidden) {
+          addGestures();
+        }
+      });
       for (const start of waiting.splice(0)) start(ready, readyBuses);
     }
-    if (ctx.state === 'suspended' && !win.document.hidden) void ctx.resume();
+    if (ctx.state !== 'running' && ctx.state !== 'closed' && !win.document.hidden) {
+      void ctx.resume();
+    }
     if (ctx.state === 'running') removeGestures();
   };
   const removeGestures = (): void => {
     for (const type of GESTURES) win.removeEventListener(type, unlock, true);
   };
-  for (const type of GESTURES) win.addEventListener(type, unlock, true);
+  const addGestures = (): void => {
+    for (const type of GESTURES) win.addEventListener(type, unlock, true);
+  };
+  addGestures();
 
+  const wake = (): void => {
+    if (!ctx || win.document.hidden) return;
+    void ctx.resume().catch(() => undefined);
+    // If the browser won't resume without a tap, the next tap does it.
+    if (ctx.state !== 'running') addGestures();
+  };
   win.document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     if (win.document.hidden) void ctx.suspend();
-    else void ctx.resume();
+    else wake();
   });
+  // Coming back through the browser's back/forward cache doesn't fire visibilitychange everywhere.
+  win.addEventListener('pageshow', wake);
 
   const release = (p: Playing): void => {
     if (p.done) return;
@@ -251,7 +218,7 @@ export function createAudioEngine(win: Window = window): AudioEngine {
     },
     duckMusic() {
       if (!ctx || !buses) return;
-      const duck = duckNodes.get(buses);
+      const duck = duckNode(buses);
       if (!duck) return;
       const d = AUDIO.duck;
       const now = ctx.currentTime;

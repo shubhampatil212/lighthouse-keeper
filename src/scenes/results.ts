@@ -171,7 +171,23 @@ export function createResultsScene(ctx: GameContext): Scene {
           stats,
           opened,
         ),
-        h('div', { className: 'results__actions' }, ...actions),
+        h(
+          'div',
+          {
+            className: 'results__actions',
+            // The buttons fade in a beat after the last star lands.
+            attrs: {
+              style: `--actions-delay: ${
+                won && !calm
+                  ? UI_FEEL.starDelayMs +
+                    Math.max(0, result.stars - 1) * UI_FEEL.starIntervalMs +
+                    UI_FEEL.starHoldMs
+                  : 0
+              }ms`,
+            },
+          },
+          ...actions,
+        ),
       ),
     );
     return {

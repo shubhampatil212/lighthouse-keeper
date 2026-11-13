@@ -3,12 +3,14 @@
  * everywhere, blended toward the light color wherever light falls (the beam cone with soft edges, the
  * island glow, the lamp spilling down the tower, buoys, and small pools under lanterns), plus the second
  * lighthouse's cone and glow. Behind each fog band the beam is cut back to the shorter range it reaches
- * through fog (a night-colored shadow drawn over the cones). It's feathered by blur on Medium and High,
+ * through fog (a night-colored shadow drawn over the cones; the second lighthouse's cone and its shadow
+ * are drawn as their own group, so each lamp's shadow only darkens its own cone). It's feathered by blur on Medium and High,
  * and on High a slow noise makes the light "breathe". The light map is then multiplied over everything
  * below it: lit areas keep their colors, the rest sinks into the night. A flare or lightning floods it
  * (warm for a flare, cold white for lightning).
  */
 import {
+  AlphaFilter,
   BlurFilter,
   Container,
   Graphics,
@@ -20,41 +22,18 @@ import {
 import type { Viewport } from '../app/viewport';
 import type { QualityProfile, RegionPalette, RenderFeelConfig } from '../data/types';
 import type { BeamStats } from '../sim/beam';
-import { fogEntry, type FogBand } from '../sim/fog';
+import type { FogBand } from '../sim/fog';
 import type { ArtProvider, Point } from './art/types';
 import { GLOW_TEXTURE_RADIUS } from './art/types';
+import { addFogShadow } from './fogShadow';
 import { rgb } from './palette';
+
+export { beamReachThroughFog } from './fogShadow';
 
 /** The second lighthouse, as the light map needs it. */
 export interface SecondLampLight extends Point {
   angle: number;
   glowRadius: number;
-}
-
-/** Rays sampled across a cone to find where fog cuts it. */
-const FOG_RAYS = 28;
-
-/**
- * How far a beam's centre line reaches once fog is counted: the full range, or (if the line passes
- * through a band) no further than the fog range or the band's near edge, whichever is further. The
- * glow in the air, the shaft and the lit water use it, so they stop where the light map's shadow begins.
- */
-export function beamReachThroughFog(
-  x: number,
-  y: number,
-  angle: number,
-  range: number,
-  fog: readonly FogBand[],
-  factor: number,
-): number {
-  let reach = range;
-  const ex = x + Math.cos(angle) * range;
-  const ey = y + Math.sin(angle) * range;
-  for (const band of fog) {
-    const t = fogEntry(band, x, y, ex, ey);
-    if (t !== null) reach = Math.min(reach, Math.max(range * factor, t * range));
-  }
-  return reach;
 }
 
 export interface LightMapFrame {
@@ -117,10 +96,16 @@ export function createLightMap(
   // The flood sits outside the tinted lights so lightning can be cold white and a flare warm.
   const flood = new Graphics({ label: 'flood' }).rect(-4000, -4000, 8000, 8000).fill(0xffffff);
   const fogShadow = new Graphics({ label: 'fogShadow' });
+  // The second lamp's cone and shadow. When both fog and a second lamp are out, the group is drawn on
+  // its own (a filter) and the shadow erases the cone, so neither lamp's shadow darkens the other cone.
+  const fogShadow2 = new Graphics({ label: 'fogShadow2', blendMode: 'erase' });
+  const lamp2Group = new Container({ label: 'secondCone' });
+  lamp2Group.addChild(cone2, fogShadow2);
+  const isolate = new AlphaFilter({ alpha: 1, resolution: 'inherit' });
   const buoys = new Container({ label: 'buoyLights' });
   const lanterns = new Container({ label: 'lanternPools' });
   // Cones first, then the fog shadow over them, then the glows and pools it must never hide.
-  lights.addChild(tower, lamp, cone, cone2, fogShadow, island, island2, buoys, lanterns);
+  lights.addChild(tower, lamp, cone, fogShadow, lamp2Group, island, island2, buoys, lanterns);
   world.addChild(flood);
 
   const { lampPoint, towerBase, towerHeight } = art.island;
@@ -143,54 +128,15 @@ export function createLightMap(
 
   const sync = (box: Container, count: number, texture = textures.glow): Sprite[] => {
     while (box.children.length < count) box.addChild(glowSprite(texture));
-    box.children.forEach((child, i) => {
-      child.visible = i < count;
-    });
-    return box.children as Sprite[];
-  };
-
-  /**
-   * Covers the part of one lamp's cone that lies behind a fog band and beyond the fog range, the same
-   * rule the simulation uses: a point is dark if the straight path from the lamp crosses fog and it's
-   * farther than range × fogRangeFactor.
-   */
-  const drawFogShadow = (
-    lamp: Point & { angle: number },
-    beam: BeamStats,
-    fog: readonly FogBand[],
-    factor: number,
-  ): void => {
-    const spread = beam.halfAngle * feel.beamHaloWidth * 1.2;
-    const reach = beam.range * 1.15;
-    const near = beam.range * factor;
-    for (const band of fog) {
-      let prev: [number, number, number] | null = null;
-      for (let i = 0; i <= FOG_RAYS; i++) {
-        const a = lamp.angle - spread + (2 * spread * i) / FOG_RAYS;
-        const cx = Math.cos(a);
-        const cy = Math.sin(a);
-        const t = fogEntry(band, lamp.x, lamp.y, lamp.x + cx * reach, lamp.y + cy * reach);
-        const ray: [number, number, number] | null =
-          t === null ? null : [a, Math.max(near, t * reach), reach];
-        if (prev && ray) {
-          const [a0, n0, f0] = prev;
-          const [a1, n1, f1] = ray;
-          fogShadow.poly([
-            lamp.x + Math.cos(a0) * n0,
-            lamp.y + Math.sin(a0) * n0,
-            lamp.x + Math.cos(a1) * n1,
-            lamp.y + Math.sin(a1) * n1,
-            lamp.x + Math.cos(a1) * f1,
-            lamp.y + Math.sin(a1) * f1,
-            lamp.x + Math.cos(a0) * f0,
-            lamp.y + Math.sin(a0) * f0,
-          ]);
-        }
-        prev = ray;
-      }
+    const children = box.children;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (child) child.visible = i < count;
     }
-    fogShadow.fill({ color: shadowColor, alpha: 0.96 });
+    return children as Sprite[];
   };
+  const islandLamp = { x: 0, y: 0, angle: 0 };
+  let isolated = false;
 
   const place = (): void => {
     if (!vp) return;
@@ -268,27 +214,43 @@ export function createLightMap(
       }
 
       fogShadow.clear();
-      if (frame.fog.length > 0) {
-        const lamps = [{ x: 0, y: 0, angle: frame.beamAngle }, ...(second ? [second] : [])];
-        for (const l of lamps) drawFogShadow(l, beam, frame.fog, frame.fogRangeFactor);
+      fogShadow2.clear();
+      const fogged = frame.fog.length > 0;
+      const spread = beam.halfAngle * feel.beamHaloWidth * 1.2;
+      if (fogged) {
+        islandLamp.angle = frame.beamAngle;
+        addFogShadow(fogShadow, islandLamp, beam, spread, frame.fog, frame.fogRangeFactor);
+        fogShadow.fill({ color: shadowColor, alpha: 0.96 });
+      }
+      const split = fogged && second !== null;
+      if (split) {
+        addFogShadow(fogShadow2, second, beam, spread, frame.fog, frame.fogRangeFactor);
+        fogShadow2.fill({ color: 0xffffff, alpha: 0.96 });
+      }
+      fogShadow2.visible = split;
+      if (split !== isolated) {
+        isolated = split;
+        lamp2Group.filters = split ? [isolate] : [];
       }
 
       const buoySprites = sync(buoys, frame.buoys.length, textures.pool);
-      frame.buoys.forEach((buoy, i) => {
+      for (let i = 0; i < frame.buoys.length; i++) {
+        const buoy = frame.buoys[i];
         const s = buoySprites[i];
-        if (!s) return;
+        if (!s || !buoy) continue;
         s.position.set(buoy.x, buoy.y);
         s.scale.set((buoy.radius * 1.25) / GLOW_TEXTURE_RADIUS);
         s.alpha = feel.buoyLight;
-      });
+      }
       const lanternSprites = sync(lanterns, frame.lanterns.length);
-      frame.lanterns.forEach((p, i) => {
+      for (let i = 0; i < frame.lanterns.length; i++) {
+        const p = frame.lanterns[i];
         const s = lanternSprites[i];
-        if (!s) return;
+        if (!s || !p) continue;
         s.position.set(p.x, p.y);
         s.scale.set(feel.lanternPoolRadius / GLOW_TEXTURE_RADIUS);
         s.alpha = feel.lanternLight;
-      });
+      }
       flood.visible = frame.mapLit;
       flood.tint = frame.floodColor ?? lightColor;
 
@@ -308,6 +270,7 @@ export function createLightMap(
       sprite.destroy();
       target.destroy(true);
       blur.destroy();
+      isolate.destroy();
     },
   };
 }

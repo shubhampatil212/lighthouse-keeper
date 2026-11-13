@@ -10,6 +10,15 @@
       content="Guide ships home through the fog with your lighthouse beam."
     />
     <title>Lighthouse Keeper</title>
+    <!-- Installable app: manifest, icons (drawn by tools/icons/makeIcons.mjs), home-screen look on iOS. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Lighthouse" />
+    <!-- The two fonts the first screens use; bold and italic load later, when first needed. -->
     <link
       rel="preload"
       href="/fonts/karla-latin-400.woff2"
@@ -17,11 +26,80 @@
       type="font/woff2"
       crossorigin
     />
+    <link
+      rel="preload"
+      href="/fonts/im-fell-english-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <!--
+      Just enough style to paint the loading screen before any script or stylesheet arrives.
+      The full look (same values) is in src/ui/screens.css.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0a222c;
+        color: #e9f1ee;
+      }
+      .boot {
+        position: fixed;
+        inset: 0;
+        z-index: 60;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 18px;
+        padding: 24px;
+        text-align: center;
+        font-family: Georgia, serif;
+      }
+      .boot__lamp {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffe2a0;
+        box-shadow: 0 0 30px 10px rgba(255, 201, 94, 0.55);
+      }
+      .boot__bar {
+        width: 180px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+      }
+      .boot__bar-fill {
+        display: block;
+        height: 100%;
+        background: #ffc95e;
+        transform: scaleX(0.05);
+        transform-origin: left;
+      }
+      .boot__text {
+        margin: 0;
+        font-style: italic;
+        font-size: 1.3rem;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
   </head>
   <body>
     <div id="stage"></div>
     <div id="ui"></div>
     <div id="fade" aria-hidden="true"></div>
+    <!-- The loading screen (docs/SCREENS.md). src/ui/bootScreen.ts takes it over once the game loads. -->
+    <div class="boot" id="boot">
+      <div class="boot__lamp" aria-hidden="true"></div>
+      <div class="boot__bar" role="progressbar" aria-label="Lighting the lamp…">
+        <span class="boot__bar-fill"></span>
+      </div>
+      <p class="boot__text" aria-live="polite">Lighting the lamp…</p>
+      <button type="button" class="boot__tap" hidden>Tap to begin</button>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -13,7 +13,7 @@ Claude Code updates this file at the end of every phase or session.
 | 06 Levels & campaign | done (awaiting owner check) | All 30 levels, 1-1 tutorial and new-mechanic prompts, bot play-tester and balance report, star coins and unlock notes, endless watch and daily sea, debug unlock/jump |
 | 07 Audio | done (owner accepted 2026-11-13) | Procedural sound: engine with buses and voice limit, ambience per region, adaptive music (title, calm/tension, dawn, fail), every sound effect from events with pitch variation and stereo position, volume sliders and mute, sound test page in the debug panel |
 | 08 Settings, saves, accessibility | done (awaiting owner check) | Versioned save in localStorage (backup of an unreadable save), export/import/reset, every setting working, high-contrast reefs, calmer motion, screen-reader announcements, auto-pause on focus loss, vibration, axe-clean menus |
-| 09 Polish & mobile | not started | |
+| 09 Polish & mobile | done (awaiting owner check) | 10 feel tweaks, performance pass (pooled ships, particles and coin pops, cached reef/whirlpool/wave shapes, one-pass water, quieter HUD), phone guards and rotation handling, installable app with offline play and code-drawn icons, loading screen before any script, full-screen switch, install hint, `docs/ASSETS.md`, second-lamp water and fog fixes, file splits |
 | 10 QA & release | not started | |
 
 ## Decisions
@@ -152,9 +152,116 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Accessibility fixes found by axe:** the coin count on the sea chart was slightly too faint (4.45:1, needs 4.5:1), and the chart and level buttons had spoken names that didn't contain their visible text (voice-control users say what they see). The shop's and logbook's card titles skipped a heading level, and the sea and HUD weren't labeled regions. All fixed; axe now reports nothing on any menu, at phone and desktop sizes.
 - **2026-11-13 · The axe check was run by hand,** with axe-core 4.14.0 loaded from a scratch folder rather than added to the project, because the owner asked for no new tests until the end. Adding `@axe-core/playwright` and turning that script into a test is on the deferred list.
 
+- **2026-11-13 · Phase 09: no new tests and no device checks this phase** (owner: "do not write any tests for any device, focus on main part"). Every test and phone check the phase prompt asks for is listed under Known issues as a reminder.
+- **2026-11-13 · The 10 feel tweaks** (all numbers in `src/data/`):
+  1. The beam settles more softly near its target: `BEAM_FEEL.easeRate` 10 → 8. The turn-speed limit is unchanged, so the skill is the same. Fairness and determinism tests pass.
+  2. Ships lean into turns: they roll toward the outside of a turn and settle after it (`VESSEL_FEEL.turnLean`, `turnLeanMax` 0.12 rad).
+  3. A ship's lantern flares the moment it's first lit (up to 1.8× glow, fading over 0.45 s; `catchLight`, `catchLightSeconds`), so "I've got it" reads clearly.
+  4. The "?" over a lost ship pops in with a small overshoot instead of appearing (`lostMarkerPop` 0.35 s).
+  5. A revealed rock settles into place: it starts 7% larger and shrinks as it fades in (`RENDER_FEEL.revealSettle`).
+  6. Ship home: the coin pop now follows the ring 0.15 s later (`coinPopDelay`), pops past full size and settles back.
+  7. Wreck shake builds over 0.05 s instead of starting with a jolt, and lasts 0.4 s (was 0.35) (`shakeRise`, `shakeSeconds`). Still off with reduced motion or screen shake off.
+  8. Results stars: 550 ms apart (was 450). Each swoops in, overshoots and settles. The buttons fade in 400 ms after the last star (`UI_FEEL.starIntervalMs`, `starHoldMs`).
+  9. Buttons: a quick press (scale 0.94 in 70 ms) and a springy release with a slight overshoot (`--press-release` in `tokens.css`). Off with reduced motion. The click sound already played.
+  10. The HUD's ships-home count does a small bump each time a ship gets home.
+- **2026-11-13 · Lit ships still reach full speed at once.** I tried letting a lit ship speed up gradually (the known issue about lighting a ship scraping along a reef). It's undone, because GDD §3.2 says a lit ship "moves at full speed", and a unit test holds the simulation to that. **Owner decision:** if you want the gradual speed-up, say so; it's one number (`litAccel`), and GDD and the test would change with it.
+- **2026-11-13 · Performance, measured in a headless Chrome with 4× CPU slowdown, level 5-6** (390×844 phone at pixel ratio 2, beam sweeping):
+
+  | Quality | Frame time before (avg / 95%) | After | Draw calls before → after | Script time per frame before → after |
+  |---|---|---|---|---|
+  | Low | 16.7 / 16.7 ms (60 fps) | 16.7 / 16.8 ms (60 fps) | 14.8 → 10.8 | 8.3 → 7.5 ms |
+  | Medium | 46–49 / 83–100 ms | 48 / 100 ms | 19 → 14.8 | 8.8 → 8.9 ms |
+  | High | 83 / 167 ms | 86 / 167 ms | 23 → 19 | — → 10.4 ms |
+
+  The test browser has no graphics chip; it draws the GPU's work on the CPU. So its Medium and High frame times are almost all pixel filling, and they didn't move. What the changes cut is the work a real phone's CPU does:
+  - about 20% fewer draw calls (well under ART_AUDIO's 60);
+  - far less garbage each frame (memory in use about 10% lower);
+  - no objects built or thrown away as ships come and go.
+
+  A test with the pixel ratio capped at 1 instead of 1.5 brought Medium from 46 to 25 ms. The pixel ratio is the biggest lever if 5-6 is slow on your phone. ART_AUDIO sets Medium to 1.5, so I left it.
+
+  60 fps on your phone is on the reminder list. Turn on Settings → Show frame rate.
+- **2026-11-13 · What the performance pass changed:**
+  - **Water:** one pass, not two. The water shader now draws as one screen-sized shape instead of a filter, which first copied the whole screen.
+  - **Ships:** reused from a pool for each kind of vessel. A wake is 4 strokes instead of 14.
+  - **Cached shapes:** reef foam rings and memory outlines, whirlpools and storm-wave crests are drawn once, then only moved and faded. The lightning flash is drawn once per screen size.
+  - **Particles:** never added to or removed from their container. A spent one shrinks to nothing until it's reused.
+  - **Coin pops:** pooled bitmap text instead of a new text image each time.
+  - **Less garbage:** the renderer, poses, arrows, light map and water reuse their objects every frame.
+  - **HUD:** writes to the page only when a value changes. The tutorial prompt used to be rewritten 60 times a second.
+- **2026-11-13 · Ships are drawn up to 1.25× larger on small screens** (when one world unit is under 1.2 px, so phones in portrait; `VESSEL_FEEL.smallScreen`). This changes drawing only; collisions don't change. A ship may look like it touches a rock a moment before it hits. Tune or turn off with `scale: 1`.
+- **2026-11-13 · The second lighthouse's light now shows on the water** (warm light and sparkles, like the island's), and the fog shadow of one lamp no longer darkens the other lamp's cone. The second cone and its fog shadow are drawn as their own group, only on nights with both fog and a second lamp.
+- **2026-11-13 · Phones:**
+  - **Page behaviour:** the page is pinned in place, so it can't scroll or pull-to-refresh. The long-press menu, text selection, image dragging, pinch-zoom (iOS) and double-tap zoom are blocked on the game (`src/app/mobileGuards.ts`, `base.css`).
+  - **Rotation:** the size is measured again 300 ms after the phone turns, because iOS reports the new size late (`VIEWPORT.rotateSettleMs`). The sea fades out for that moment, so no stretched frame shows. A night keeps running.
+  - **Sound:** after a phone call or an app switch, sound comes back on return, or on the next tap if the phone insists on one. Coming back with the browser's back button also restarts sound. Pausing on app switch was already there from Phase 08.
+- **2026-11-13 · Installable app (PWA):**
+  - **Manifest:** `public/manifest.webmanifest`. Full screen, any orientation, teal theme.
+  - **Icons:** drawn in code by `tools/icons/makeIcons.mjs` (`npm run icons`): the lighthouse on a teal sea, with a beam. The PNGs are saved in `public/icons/`.
+  - **The icon script is plain JavaScript,** because this computer's Node can't run TypeScript directly.
+  - **Offline:** a service worker (`sw.js`) is written into every production build by `tools/vite/serviceWorker.ts`. It saves every game file, font and icon so the game plays offline. The page is fetched fresh when online, so updates arrive the next time you open the game online.
+  - **Not in development:** the service worker is never active with `npm run dev`, so it can't serve stale files while we work.
+- **2026-11-13 · "Add to home screen" hint** on the title, on phones and tablets only, and never once installed:
+  - Android Chrome shows an **Install** button, which opens the browser's own prompt.
+  - iPhone Safari says "tap Share, then Add to Home Screen". Other iPhone browsers can't install, so they show nothing.
+  - **Not now** hides it for good. This is remembered as a new setting, `installHintDismissed`. An older save simply gets the default, so the save version stays 1.
+- **2026-11-13 · Full screen is a switch in Settings → Display** (also reached from Pause → Settings). Browsers only allow full screen from a tap, so it isn't saved. It's hidden where full screen doesn't exist (iPhone Safari) and when the game is installed (already full screen).
+- **2026-11-13 · Loading:**
+  - **First paint:** the loading screen (lamp, progress line, "Lighting the lamp…") is now written into `index.html`, so it shows before any script arrives. The game takes it over when it loads.
+  - **Fonts:** the interface font and the title font are preloaded, and the game waits for them (at most 2.5 s) so the title never flashes in another font. Bold and italic load when first needed, as ART_AUDIO allows.
+  - **Progress line:** it now follows real steps: fonts, graphics, first frame.
+  - **Size:** the whole first load is **0.42 MB gzipped** including all four fonts (budget 1.5 MB). So I didn't split the debug tools into a separate download; it would save a few KB.
+- **2026-11-13 · No focus ring after a tap.** Screens still put keyboard players straight on the first control, but only show its focus ring if the keyboard was used last (`src/ui/inputModality.ts`).
+- **2026-11-13 · `docs/ASSETS.md`** explains how an artist or sound designer can replace any drawn shape or synthesized sound with files through `ArtProvider` and the sound catalog. It covers every slot, sizes in world units and pixels, formats, loudness, the size budget, and what a programmer changes. No file loader is built yet.
+- **2026-11-13 · Files split to stay near the ~300-line guideline:**
+
+  | Was | Pulled out into |
+  |---|---|
+  | `main.ts` | `app/qualityControl.ts`, `app/debugWiring.ts`, `app/firstScreen.ts` |
+  | `play.ts` | `scenes/playHud.ts` |
+  | `Renderer.ts` | `render/nightLights.ts`, `render/currentView.ts` |
+  | `lightMap.ts` | `render/fogShadow.ts` |
+  | `hazardView.ts` | `render/whirlpoolView.ts`, `render/waveView.ts` |
+  | `shipView.ts` | `render/shipSprite.ts` |
+  | `debugPanel.ts` | `ui/debugControls.ts` |
+  | `audio/engine.ts` | `audio/buses.ts` |
+  | `sim/ships.ts` | `sim/shipSpawn.ts` |
+  | `data/types.ts` | `data/shipTypes.ts`, `data/hazardTypes.ts`, `data/renderTypes.ts`, all still re-exported from `types.ts` |
+
+  `sim/world.ts` stays at 302 lines.
+
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Phase 09 reminders: tests and device checks to do later** (owner: no tests or device testing this phase):
+  - **On your phones:**
+    - It installs to the home screen on Android (Chrome) and iPhone (Safari), launches full screen and works offline in airplane mode. This needs the built game on a real address (`npm run build`, then `npm run preview`, or a hosted copy). The service worker doesn't run in `npm run dev`.
+    - 60 fps in 5-6 on Medium (Settings → Show frame rate).
+    - Rotating mid-night: nothing wobbles, jumps or flickers.
+    - Pull-to-refresh, page scroll, long-press menu and zoom are all blocked.
+    - A phone call or app switch pauses the night, and sound comes back after.
+    - The install hint shows: the Install button on Android, the Share text on iPhone. "Not now" is remembered.
+    - The full-screen switch works on Android Chrome.
+    - Do ships look right at 1.25× on your phone?
+    - Does it "feel good"? List anything you'd change.
+  - **Unit tests:**
+    - the shake's build-up (`shakeOffset` rise);
+    - `createQualityControl` (fixed level, Auto drop, choosing again);
+    - pooled `vesselPoses` (reuse, length, smuggler dim);
+    - particle reuse and swap-remove within the budget;
+    - the HUD writes only on change;
+    - `installRoute` detection (installed, Chrome prompt, iOS Safari, other iOS browsers);
+    - `loadFonts` timeout;
+    - a save without `installHintDismissed` gets the default;
+    - `addFogShadow` and `beamReachThroughFog` (moved to `fogShadow.ts`);
+    - the icon maker writes valid PNGs.
+  - **Browser tests:**
+    - The production build's service worker caches every file and a reload works offline. Checked by hand with a script: 21 files cached, the game loads offline, no errors.
+    - The manifest is valid and its icons load.
+    - The loading screen shows before the script.
+    - No focus ring after a tap, but one after a key press.
+    - The full-screen switch appears on desktop.
+    - Rotation emulation mid-night.
 - **Phase 08 tests to write (owner: no tests until the end; the phase prompt asks for them):**
   - unit: `readSave` (defaults for missing fields, refusing wrong types and out-of-range numbers, dropping unknown level ids, refusing a newer version); `migrate` (walks each step, stops on a missing one, refuses version 0 and newer); `createSaveStorage` (debounce, flush, unreadable → backup key, storage that throws); settings defaults; `saveFileName`; the announcer's joining of saves and wrecks
   - browser (needs `@axe-core/playwright`, pinned): axe on every menu, Pause and Pause → Settings at phone and desktop sizes with no serious issues; reload keeps progress; export → reset → import gives back the identical save; a junk file is refused; an unreadable save shows the notice and leaves the backup; `?progress=` doesn't write; losing focus pauses the night
@@ -162,7 +269,6 @@ Claude Code updates this file at the end of every phase or session.
 - **Phase 07 tests to write (owner: no tests until the end):**
   - unit: `shipInDanger` / `shipOutOfDanger` (dark for 3 s, near a rock, cleared by drifting away; never for smugglers; no events while lit); the night listener (tension from events, cleared by lit/saved/wrecked/caught/escaped and at the night's end; the first-lit bell once per ship; pan from x); music theory (`degreeSemis`, `walk` stays in range and lands on chord notes on strong beats); the volume curve
   - browser: no autoplay warning before the first tap and the context running after it; mute silences the master meter; the voice cap under a burst of sounds; the sound test buttons play without errors
-- **`main.ts` (323 lines) and `play.ts` (322)** grew with the audio and save hookups. Worth splitting in phase 09 with the others.
 - **The economy is far more generous than CONTENT.md §8 asks (owner decision needed; tracked in `docs/TODO.md`).** With the ship coins (§2) and prices (§4) as written, a ★★★ region pays 1.9–4× the cost of maxing Brighter lamp (target about 1.3×), and a keeper can afford every upgrade (about 1,200 coins) by region 2–3. Options: halve the coins per ship, raise the shop's cost growth (0.6) to about 1.2, or both. I haven't changed CONTENT's numbers; the economy table in `docs/balance-report.md` will show the effect of whichever you pick. Phase 10 has the balance pass.
 - **Balance outliers** (details in `docs/balance-report.md`): several region 2–5 "introduce" levels are easy for the smart bot (≈ 3.0 stars); the sweeper fails region 3+ finales and a few others more than the 20–40% target (3-6, 4-5, 4-6, 5-2), and a few less (3-4, 4-2, 5-3, 5-5); region 1's 1-3 is a step up before an easier 1-4 (its bonus, "no ship in the dark over 6 s", is fixed by CONTENT.md).
 - **Phase 06 tests to write (owner: no tests until the end):**
@@ -172,7 +278,6 @@ Claude Code updates this file at the end of every phase or session.
 - **With 20 or more nights per level, the fairness test's own guard trips on 1-1:** a player who never moves the beam wrecks only about 5 times in 20 nights there, and the guard wants more than a quarter of the nights to have a wreck ("or the check proves nothing"). It isn't an unfair wreck; the default 8 nights pass. The 1-1 tutorial is meant to be gentle.
 - **`npm run test` now takes about 3 minutes** (the fairness check replays all 30 levels).
 - **The bot play-tester takes several minutes** for all 30 levels × 3 difficulties × 3 bots × 40 nights. Use `PLAYTEST_LEVELS=2-`, `PLAYTEST_DIFF=keeper`, `PLAYTEST_BOTS=smart` or `PLAYTEST_SEEDS=10` while tuning.
-- **`main.ts` (308 lines), `debugPanel.ts` (320) and `world.ts` (302)** are a little over the ~300-line guideline. Worth splitting in phase 09.
 - **The "smart" bot is strong** (it knows every rock). The targets in the prompt are met against it, but a first-time human will find mid-campaign levels harder than its numbers suggest. Please play-test region 1 on Keeper as the checklist asks.
 - **Phase 05 tests to write (owner: no tests until the end, 2026-11-13):**
   - Playwright: the main path Title → Map → Level → Play → Pause → Quit (the phase checklist's test); a keyboard-only walk; Esc and browser back on every screen; no cut-off content in an iPhone-shaped viewport with notch insets
@@ -180,7 +285,6 @@ Claude Code updates this file at the end of every phase or session.
   - unit: progress rules (unlocks, `recordResult`, upgrade and buoy prices, buying, buoy limit), `pickTip` and the night log, the navigator's back order, `levelDef` stand-ins, `nextLevelId`, settings store updates
 - **Bell buoys can't be removed or moved** once placed (no rule in the docs; easy to add if wanted).
 - **The HUD level label for debug demos shows the demo's id** (for example "demo-cove"). Campaign nights show "1-2 The cargo run".
-- **Visible focus rings appear on the first button of each screen** even when you tap rather than use the keyboard, in some browsers. It's the price of putting keyboard players straight on the first control.
 - **Tests still to write (owner asked to defer, 2026-11-13).** Already covered: fairness with every hazard, fog, icebergs, lightning, whirlpools, pirates, determinism, and all special ships. Still to write:
   - the foghorn: locked, slow, cooldown by level
   - flares: charges, empty
@@ -191,41 +295,47 @@ Claude Code updates this file at the end of every phase or session.
   - the sandbox's world edits (launchShip, addHazard, clearHazard)
   - the input keys and buttons
   - a browser smoke test of #sandbox (checked by hand with a script: no console errors)
-- **`Renderer.ts` is 325 lines and `lightMap.ts` 313**, a little over the ~300 guideline. Worth splitting during phase 09 polish.
-- **The second lamp lights the water without sparkles** (the water shader knows only the island's beam). Light and reveals are correct.
-- **The fog shadow can darken the other lamp's cone** where they overlap. It only shows on a level with both fog and a second lamp.
 - **Not seen on screen yet:** the tug's rope line and the whirlpool-wreck swirl (both checked in code; the sandbox shows them), and the lightning warning glow (too brief for a screenshot).
 - **The whole test suite now takes about 70 s** (the fairness runs replay thousands of nights). The fairness checks are split over three files so they run in parallel.
-- **Ships are small on portrait phones.** The whole 230-unit circle must fit the phone's width, so on a 390 px-wide phone one world unit is about 0.8 px and a fishing boat is about 11 px long. All six types are clearly different on desktop and in the zoomed parade, but on a phone they're small. Options if it bothers you in play: draw ships larger than their collision size, or revisit the phase 01 scale rule. Worth checking on your phone with the **Ship parade**.
+- **Ships are small on portrait phones.** The whole 230-unit circle must fit the phone's width, so on a 390 px-wide phone one world unit is about 0.8 px and a fishing boat is about 11 px long. All six types are clearly different on desktop and in the zoomed parade, but on a phone they're small. Options if it bothers you in play: draw ships larger than their collision size, or revisit the phase 01 scale rule. Worth checking on your phone with the **Ship parade**. *Phase 09:* ships are now drawn up to 1.25× larger on phones in portrait (drawing only); see Decisions.
 - **Low quality looks a little flat in the beam** (no water shader, so lit water is lighter but not warm). It's the fallback for weak devices.
 - The water shader's WebGPU version is checked in desktop Chrome only (with a software GPU); WebGL is what phones use today.
 - `npm audit` reports a moderate advisory in `minimatch`, which ESLint and typescript-eslint use. It only affects the developer's lint tooling and never reaches players. Clears when those packages update.
-- **Lighting a ship that is scraping along a reef can make it crash sooner.** A dark ship drifts at 60% speed, so it can creep along a reef's edge for several seconds. Lighting it in the last second or two speeds it up to full speed before it can turn away. Each such ship was savable earlier (the fairness test checks this), but it may feel unfair in play. Worth watching in play-tests; a possible fix is to let lit ships speed up gradually instead of instantly.
+- **Lighting a ship that is scraping along a reef can make it crash sooner.** A dark ship drifts at 60% speed, so it can creep along a reef's edge for several seconds. Lighting it in the last second or two speeds it up to full speed before it can turn away. Each such ship was savable earlier (the fairness test checks this), but it may feel unfair in play. Worth watching in play-tests; a possible fix is to let lit ships speed up gradually instead of instantly. *Phase 09:* tried and undone, because GDD §3.2 says lit ships move at full speed; owner decision (see Decisions).
 - **Replays across different browsers may differ slightly**, because `Math.sin`/`Math.cos` can round differently from one engine to another. Within one browser a seed always replays exactly. This only matters if we ever share replays between devices.
 
 ## How to test the latest work
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
-2. **Progress is kept (the phase checklist):** play a night or two of the campaign, change a setting or two, then close the tab in the middle of a night. Reopen the address: your stars, coins, upgrades, buoys and settings are all still there. (The night you closed in the middle of isn't; it starts again.)
-3. **Export, reset, import:** Settings → Data → **Export save** downloads a file. **Reset progress** (tap twice) starts a new keeper. **Import save**, choose the file, check the stars and coins it shows, then **Load save**: everything comes back exactly. Try importing any other file: it says it isn't a save and changes nothing.
-4. **Every setting:**
-   - Sound: the sliders and Mute change the sound at once.
-   - Graphics: the quality setting changes the look, and the frame-rate counter appears.
-   - Screen shake: no shake on wrecks when it's off.
-   - Difficulty: changing it mid-night restarts the night.
-   - Beam control: Follow finger or Drag to rotate.
-   - Left-handed: the ability buttons move left.
-   - Tutorial prompts: switch them off and 1-1's tips disappear.
-   - Reduced motion: no shake, plain fades, and the sea, fog and rain move slowly.
-   - Colorblind: harbor colors become orange and blue, with circle and triangle marks (nights with two harbors, from 5-2; `?level=5-2` jumps there).
-   - High-contrast reefs: after the beam passes, the rock outlines are bright cream, thicker, and stay about twice as long.
-   - Larger text: the menus and HUD grow 1.25×.
-   - Vibration: on an Android phone, a short buzz when a ship gets home, a stronger pattern on a wreck, and a tick for each star.
-5. **Pausing by itself:** during a night, switch to another app or tab and come back; the night is paused.
-6. **Screen reader (optional):** with VoiceOver or TalkBack on, the menus read their buttons by name. During a night it says when ships come home or are wrecked, and how the night ended.
-7. **Debug presets:** `?progress=mid` or `?progress=all` still work, and never touch your real save.
-8. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 4 minutes), `npm run e2e`, `npm run playtest`.
+2. **Feel:**
+   - Play a night or two and watch for:
+     - the beam settling softly;
+     - ships leaning into turns;
+     - a lantern flaring when you first light its ship;
+     - the "?" popping in;
+     - rocks settling as they appear;
+     - the coin pop just after the save ring;
+     - the counter's bump;
+     - the softer wreck shake.
+   - On Results, the stars land one by one with a little bounce, and the buttons appear a beat later.
+   - Buttons press down and spring back.
+3. **Speed:** Settings → Show frame rate, then play `?level=5-6` (the busiest night) on Medium. It should stay near 60 on your phone. If it doesn't, try Low and tell me the numbers.
+4. **Phone behaviour:**
+   - Try to pull the page down, scroll, long-press the sea, or pinch: nothing should happen.
+   - Rotate the phone in the middle of a night: the sea fades for a moment and comes back the right size.
+   - Switch apps and come back: the night is paused, and sound returns.
+5. **Install and offline** (needs the built game, because the offline part is off in development):
+   1. Run `npm run build`, then `npm run preview`.
+   2. Open the **Network** address it prints on your phone.
+   3. On Android Chrome, the title shows an **Install** button. On iPhone Safari, it says to use Share → Add to Home Screen.
+   4. Install, then open it from the home screen: it runs full screen with the lighthouse icon.
+   5. Turn on airplane mode and open it again: it still plays.
+6. **Full screen:** Settings → Display → **Full screen** (on Android or desktop browsers).
+7. **Loading:** reload the page. The lamp and "Lighting the lamp…" show at once, then "Tap to begin".
+8. **Second lighthouse:** `?level=5-4` or `?level=5-6`. The second beam now lights and sparkles on the water too.
+9. **For an artist or sound designer:** `docs/ASSETS.md`.
+10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 5 minutes), `npm run e2e`, `npm run icons` (redraws the icons).
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -276,3 +386,14 @@ Claude Code updates this file at the end of every phase or session.
   - High-contrast outlines outlast the normal ones; losing focus pauses and announces "Paused."
 
   No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's check.
+- **2026-11-13 · Phase 09 Polish, game feel & mobile.** Built:
+  - the 10 feel tweaks;
+  - the performance pass, measured before and after;
+  - phone guards, rotation handling and sound recovery after calls;
+  - the installable app: manifest, icons drawn in code, an offline service worker, the install hint and the full-screen switch;
+  - a loading screen that shows before any script, with fonts preloaded;
+  - `docs/ASSETS.md`;
+  - fixes for the second lamp's water light, the fog shadow and the focus ring after a tap;
+  - file splits.
+
+  No new tests and no device checks, per the owner; everything to check later is listed under Known issues. Typecheck and lint are clean, 482/482 unit tests and 5 browser tests pass. In a headless browser: no console errors on boot, title, 5-6, 3-3, 4-1 and Settings, and the production build plays offline. Waiting for the owner's phone checks.

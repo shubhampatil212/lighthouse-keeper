@@ -37,6 +37,10 @@ export const SCREENS = {
   titleCredits: 'Credits',
   endlessLocked: 'Finish Harbor Bay to open the endless watch.',
   titleDaily: 'Daily sea',
+  installHintPrompt: 'Add Lighthouse Keeper to your home screen to play full screen, even offline.',
+  installHintIos: 'To play full screen and offline, tap Share, then Add to Home Screen.',
+  installHintButton: 'Install',
+  installHintClose: 'Not now',
 
   // Difficulty (first launch)
   difficultyTitle: 'How rough a sea?',
@@ -177,6 +181,7 @@ export const SCREENS = {
   qualityMedium: 'Medium',
   qualityHigh: 'High',
   qualityAuto: 'Auto',
+  settingsFullscreen: 'Full screen',
   settingsFps: 'Show frame rate',
   settingsShake: 'Screen shake',
   settingsGameplay: 'Gameplay',

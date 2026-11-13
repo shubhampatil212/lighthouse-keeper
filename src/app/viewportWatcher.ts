@@ -1,6 +1,8 @@
 /**
  * Browser side of the viewport: reads window size, pixel ratio and safe-area insets,
- * and reports a new Viewport whenever they change.
+ * and reports a new Viewport whenever they change. When the phone rotates, the size is read again
+ * a moment later (iOS reports it late), and `onRotate` says when the rotation starts and settles so
+ * the sea can hide behind a quick fade meanwhile.
  */
 import type { ViewportConfig } from '../data/types';
 import { computeViewport, type Insets, type Viewport } from './viewport';
@@ -36,10 +38,12 @@ export function watchViewport(
   config: ViewportConfig,
   maxPixelRatio: number,
   onChange: (vp: Viewport) => void,
+  onRotate: (settling: boolean) => void = () => undefined,
 ): ViewportWatcher {
   const probe = createInsetProbe();
   let cap = maxPixelRatio;
   let pending = 0;
+  let settle: ReturnType<typeof setTimeout> | null = null;
 
   const measure = (): Viewport =>
     computeViewport(
@@ -64,8 +68,21 @@ export function watchViewport(
     if (pending === 0) pending = requestAnimationFrame(update);
   };
 
+  const rotated = (): void => {
+    onRotate(true);
+    schedule();
+    if (settle !== null) clearTimeout(settle);
+    settle = setTimeout(() => {
+      settle = null;
+      update();
+      onRotate(false);
+    }, config.rotateSettleMs);
+  };
+  const orientation = typeof screen !== 'undefined' ? screen.orientation : undefined;
   window.addEventListener('resize', schedule);
-  window.addEventListener('orientationchange', schedule);
+  window.visualViewport?.addEventListener('resize', schedule);
+  if (orientation) orientation.addEventListener('change', rotated);
+  else window.addEventListener('orientationchange', rotated);
   // Fires when the page moves to a screen with a different pixel ratio.
   let dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
   const onDprChange = (): void => {
@@ -86,7 +103,10 @@ export function watchViewport(
     },
     dispose() {
       window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', schedule);
+      window.visualViewport?.removeEventListener('resize', schedule);
+      if (orientation) orientation.removeEventListener('change', rotated);
+      else window.removeEventListener('orientationchange', rotated);
+      if (settle !== null) clearTimeout(settle);
       dprQuery.removeEventListener('change', onDprChange);
       if (pending !== 0) cancelAnimationFrame(pending);
       probe.remove();

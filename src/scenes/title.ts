@@ -2,6 +2,7 @@
 import { isEndlessUnlocked } from '../app/progress';
 import type { Scene } from '../app/sceneManager';
 import { button } from '../ui/kit/controls';
+import { installHint } from '../ui/installHint';
 import { h } from '../ui/kit/dom';
 import { STRINGS } from '../ui/strings';
 import { SCENE, type GameContext } from './context';
@@ -62,6 +63,9 @@ export function createTitleScene(ctx: GameContext): Scene {
         button(STRINGS.titleLogbook, () => void ctx.nav.go(SCENE.logbook), { icon: 'book' }),
         button(STRINGS.titleSettings, () => void ctx.nav.go(SCENE.settings), { icon: 'gear' }),
       ),
+      installHint(ctx.settings.get().installHintDismissed, () => {
+        ctx.settings.update((s) => ({ ...s, installHintDismissed: true }));
+      }),
       h(
         'footer',
         { className: 'title-screen__footer' },

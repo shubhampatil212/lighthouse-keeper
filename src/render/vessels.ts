@@ -7,7 +7,8 @@ import { HAZARDS, SMUGGLER, VESSEL_FEEL } from '../data';
 import type { ShipTypeConfig, ShipTypeId } from '../data/types';
 import type { World } from '../sim/world';
 import type { VesselKind } from './art/types';
-import { lerpPose, type Pose } from './interpolate';
+import type { WakePoint } from '../sim/ships';
+import type { Pose } from './interpolate';
 import type { ShipPose } from './shipView';
 
 export interface VesselSize {
@@ -40,53 +41,69 @@ export function capturePoses(world: World, into: Map<number, Pose>): void {
   }
 }
 
+const NO_WAKE: readonly WakePoint[] = [];
+
+/** Blends `from` → `to` by t (the short way round) into `out`. */
+function blendInto(out: ShipPose, from: Pose | undefined, to: Pose, t: number): void {
+  if (!from) {
+    out.x = to.x;
+    out.y = to.y;
+    out.heading = to.heading;
+    return;
+  }
+  const turn = Math.atan2(Math.sin(to.heading - from.heading), Math.cos(to.heading - from.heading));
+  out.x = from.x + (to.x - from.x) * t;
+  out.y = from.y + (to.y - from.y) * t;
+  out.heading = from.heading + turn * t;
+}
+
 /**
- * Poses for every vessel, blended by `alpha`. A caught smuggler keeps its ship id, so its sprite
- * carries on smoothly into the tow.
+ * Poses for every vessel, blended by `alpha`, written into `out` (its objects are reused from frame to
+ * frame, so nothing new is made while the fleet stays the same size). A caught smuggler keeps its ship
+ * id, so its sprite carries on smoothly into the tow.
  */
-export function vesselPoses(world: World, previous: Map<number, Pose>, alpha: number): ShipPose[] {
+export function vesselPoses(
+  world: World,
+  previous: Map<number, Pose>,
+  alpha: number,
+  out: ShipPose[],
+): ShipPose[] {
   const { ships, pirates, tows } = world.state;
   const boardDelay = HAZARDS.pirate.boardDelay;
-  const poses: ShipPose[] = ships.map((ship) => ({
-    id: ship.id,
-    type: ship.type,
-    ...lerpPose(previous.get(ship.id), ship, alpha),
-    lit: ship.lit,
-    lost: ship.lost,
-    wake: ship.wake,
-  }));
+  let n = 0;
+  const next = (id: number, type: VesselKind, from: Pose, lit: boolean): ShipPose => {
+    let pose = out[n];
+    if (!pose) {
+      pose = { id, type, x: 0, y: 0, heading: 0, lit, lost: false, wake: NO_WAKE };
+      out.push(pose);
+    }
+    n++;
+    pose.id = id;
+    pose.type = type;
+    pose.lit = lit;
+    pose.lost = false;
+    pose.wake = NO_WAKE;
+    pose.alarm = 0;
+    pose.dim = 1;
+    blendInto(pose, previous.get(id), from, alpha);
+    return pose;
+  };
+  for (const ship of ships) {
+    const pose = next(ship.id, ship.type, ship, ship.lit);
+    pose.lost = ship.lost;
+    pose.wake = ship.wake;
+  }
   for (const p of pirates) {
-    poses.push({
-      id: p.id,
-      type: 'pirate',
-      ...lerpPose(previous.get(p.id), p, alpha),
-      lit: p.lit,
-      lost: false,
-      wake: p.wake,
-      alarm: p.mode === 'hunt' ? Math.min(1, p.huntTime / boardDelay) : 0,
-    });
+    const pose = next(p.id, 'pirate', p, p.lit);
+    pose.wake = p.wake;
+    pose.alarm = p.mode === 'hunt' ? Math.min(1, p.huntTime / boardDelay) : 0;
   }
   for (const t of tows) {
-    poses.push({
-      id: t.id,
-      type: 'coastGuard',
-      ...lerpPose(previous.get(t.id), t, alpha),
-      lit: t.lit,
-      lost: false,
-      wake: t.wake,
-    });
-    const s = t.smuggler;
-    poses.push({
-      id: s.id,
-      type: 'smuggler',
-      ...lerpPose(previous.get(s.id), s, alpha),
-      lit: t.lit,
-      lost: false,
-      wake: [],
-      dim: VESSEL_FEEL.towedDim,
-    });
+    next(t.id, 'coastGuard', t, t.lit).wake = t.wake;
+    next(t.smuggler.id, 'smuggler', t.smuggler, t.lit).dim = VESSEL_FEEL.towedDim;
   }
-  return poses;
+  out.length = n;
+  return out;
 }
 
 const PARADE_ORDER: readonly VesselKind[] = [

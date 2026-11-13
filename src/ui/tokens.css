@@ -67,6 +67,8 @@
   /* Motion (the reduced-motion setting turns these off) */
   --ease-fast: 140ms ease;
   --ease-slow: 250ms ease;
+  /* Buttons spring back on release, with a slight overshoot (the press itself is 70 ms, in kit.css). */
+  --press-release: 260ms cubic-bezier(0.3, 1.8, 0.5, 1);
 
   color-scheme: dark;
 }
@@ -88,6 +90,7 @@
 :root.reduce-motion {
   --ease-fast: 0ms linear;
   --ease-slow: 120ms linear;
+  --press-release: 0ms linear;
 }
 
 :root.large-text {

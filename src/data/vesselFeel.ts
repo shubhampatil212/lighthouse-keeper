@@ -16,4 +16,11 @@ export const VESSEL_FEEL: VesselFeelConfig = {
   harborLights: 10,
   harborLightRadius: 5,
   towedDim: 0.7,
+  turnLean: 0.12,
+  turnLeanMax: 0.12,
+  catchLight: 0.8,
+  catchLightSeconds: 0.45,
+  lostMarkerPop: 0.35,
+  wakeBands: 4,
+  smallScreen: { belowScale: 1.2, scale: 1.25 },
 };

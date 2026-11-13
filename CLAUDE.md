@@ -27,6 +27,7 @@ If code and docs disagree, the docs win, unless the owner says otherwise. When t
 - `npm run test` — Vitest
 - `npm run e2e` — Playwright smoke tests
 - `npm run lint` / `npm run typecheck`
+- `npm run icons` — redraw the app icons into `public/icons/`
 
 ## Architecture rules
 1. **Simulation and rendering are separate.** `src/sim/` holds pure TypeScript game logic: no Pixi, no DOM, no `Math.random`, no `Date`. It advances on a **fixed 60 Hz timestep** and uses a **seeded RNG** (`src/sim/rng.ts`). `src/render/` reads simulation state and draws it. It never changes that state.

@@ -1,14 +1,16 @@
 /**
- * Layer 1, the water. Medium and High run the water shader (1 or 3 noise layers; sparkles on High).
- * Low draws a flat gradient with drifting wave sprites instead, like the prototype.
+ * Layer 1, the water. Medium and High run the water shader (1 or 3 noise layers; sparkles on High) on
+ * one screen-sized quad. Low draws a flat gradient with drifting wave sprites instead, like the prototype.
  */
 import {
   Container,
   FillGradient,
-  Filter,
   GlProgram,
   GpuProgram,
   Graphics,
+  Mesh,
+  MeshGeometry,
+  Shader,
   Sprite,
   Texture,
   UniformGroup,
@@ -32,19 +34,36 @@ export interface WaterLight {
   glowRadius: number;
 }
 
+/** The second lighthouse's light on the water (world units), so it sparkles like the island's. */
+export interface SecondWaterLight extends WaterLight, Point {}
+
 export interface WaterView {
   readonly container: Container;
   setQuality(profile: QualityProfile): void;
   setPalette(palette: RegionPalette): void;
   resize(vp: Viewport): void;
   /** `lamp` is the lamp glass on screen (CSS px). */
-  update(time: number, light: WaterLight, lamp: Point, islandRadius: number): void;
+  update(
+    time: number,
+    light: WaterLight,
+    lamp: Point,
+    islandRadius: number,
+    second: SecondWaterLight | null,
+  ): void;
   destroy(): void;
 }
 
 type WaterUniforms = Record<(typeof WATER_UNIFORM_NAMES)[number], Float32Array>;
 
-function createWaterFilter(): { filter: Filter; uniforms: WaterUniforms } {
+/** Writes four values into a vec4 uniform without making a new array each frame. */
+function put(target: Float32Array, a: number, b: number, c: number, d: number): void {
+  target[0] = a;
+  target[1] = b;
+  target[2] = c;
+  target[3] = d;
+}
+
+function createWaterShader(): { shader: Shader; uniforms: WaterUniforms } {
   const group = new UniformGroup(
     Object.fromEntries(
       WATER_UNIFORM_NAMES.map((name) => [
@@ -53,7 +72,7 @@ function createWaterFilter(): { filter: Filter; uniforms: WaterUniforms } {
       ]),
     ),
   );
-  const filter = new Filter({
+  const shader = new Shader({
     glProgram: GlProgram.from({
       vertex: WATER_VERTEX_GLSL,
       fragment: WATER_FRAGMENT_GLSL,
@@ -68,8 +87,12 @@ function createWaterFilter(): { filter: Filter; uniforms: WaterUniforms } {
     resources: { waterUniforms: group },
   });
   const uniforms = group.uniforms as WaterUniforms;
-  return { filter, uniforms };
+  return { shader, uniforms };
 }
+
+/** A quad from (0, 0) to (width, height), in CSS px. */
+const quad = (width: number, height: number): Float32Array =>
+  new Float32Array([0, 0, width, 0, width, height, 0, height]);
 
 /** Low quality: wave crests scattered over the sea in world units, drifting gently. */
 interface Wave {
@@ -81,21 +104,28 @@ interface Wave {
 
 export function createWater(waveTexture: Texture): WaterView {
   const container = new Container({ label: 'waterView' });
-  const surface = new Sprite({ texture: Texture.WHITE, label: 'waterSurface' });
-  const { filter, uniforms } = createWaterFilter();
-  surface.filters = [filter];
+  const { shader, uniforms } = createWaterShader();
+  const geometry = new MeshGeometry({
+    positions: quad(1, 1),
+    uvs: new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]),
+    indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+  });
+  const surface = new Mesh({ geometry, shader, label: 'waterSurface' });
   const flat = new Graphics({ label: 'waterFlat' });
   const waves = new Container({ label: 'waterWaves' });
   container.addChild(surface, flat, waves);
 
   let palette: RegionPalette | null = null;
   let vp: Viewport | null = null;
-  let shader = true;
+  let useShader = true;
   let waveList: Wave[] = [];
 
   const setColor = (target: Float32Array, color: number): void => {
     const [r, g, b] = rgb(color);
-    target.set([r, g, b, 1]);
+    target[0] = r;
+    target[1] = g;
+    target[2] = b;
+    target[3] = 1;
   };
 
   const drawFlat = (): void => {
@@ -116,7 +146,7 @@ export function createWater(waveTexture: Texture): WaterView {
   const buildWaves = (): void => {
     for (const wave of waveList) wave.sprite.destroy();
     waveList = [];
-    if (!vp || shader) return;
+    if (!vp || useShader) return;
     const rng = createRng(0x3a7e);
     const halfW = vp.width / 2 / vp.scale + 20;
     const halfH = vp.height / 2 / vp.scale + 20;
@@ -138,10 +168,10 @@ export function createWater(waveTexture: Texture): WaterView {
   return {
     container,
     setQuality(profile) {
-      shader = profile.waterNoiseLayers > 0;
-      surface.visible = shader;
-      flat.visible = !shader;
-      waves.visible = !shader;
+      useShader = profile.waterNoiseLayers > 0;
+      surface.visible = useShader;
+      flat.visible = !useShader;
+      waves.visible = !useShader;
       const params = uniforms.uParams;
       params[2] = Math.max(1, profile.waterNoiseLayers);
       params[3] = profile.waterSparkles ? 1 : 0;
@@ -157,19 +187,24 @@ export function createWater(waveTexture: Texture): WaterView {
     },
     resize(next) {
       vp = next;
-      surface.width = next.width;
-      surface.height = next.height;
+      geometry.positions = quad(next.width, next.height);
       drawFlat();
       buildWaves();
     },
-    update(time, light, lamp, islandRadius) {
+    update(time, light, lamp, islandRadius, second) {
       if (!vp) return;
-      if (shader) {
+      if (useShader) {
         uniforms.uParams[0] = time;
         uniforms.uParams[1] = vp.scale;
-        uniforms.uView.set([vp.centerX, vp.centerY, vp.width, vp.height]);
-        uniforms.uBeam.set([light.angle, light.halfAngle, light.range, light.glowRadius]);
-        uniforms.uLamp.set([lamp.x, lamp.y, 1, islandRadius]);
+        put(uniforms.uView, vp.centerX, vp.centerY, vp.width, vp.height);
+        put(uniforms.uBeam, light.angle, light.halfAngle, light.range, light.glowRadius);
+        put(uniforms.uLamp, lamp.x, lamp.y, 1, islandRadius);
+        if (second) {
+          put(uniforms.uBeam2, second.angle, second.halfAngle, second.range, second.glowRadius);
+          put(uniforms.uLamp2, second.x, second.y, 1, 0);
+        } else {
+          uniforms.uLamp2[2] = 0;
+        }
         return;
       }
       const s = vp.scale;
@@ -183,7 +218,7 @@ export function createWater(waveTexture: Texture): WaterView {
     },
     destroy() {
       container.destroy({ children: true });
-      filter.destroy();
+      shader.destroy();
     },
   };
 }

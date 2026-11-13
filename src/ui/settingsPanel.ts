@@ -9,6 +9,7 @@ import type { Store } from '../app/store';
 import { pickFile } from '../save';
 import type { DifficultyId, QualityChoice } from '../data/types';
 import type { GameSettings } from '../data/uiTypes';
+import { fullscreenToggle } from './fullscreen';
 import { button, segmented, slider, toggle } from './kit/controls';
 import { h, type Child } from './kit/dom';
 import { openModal } from './kit/modal';
@@ -60,6 +61,7 @@ export function createSettingsPanel(
       s.quality,
       set('quality'),
     ),
+    fullscreenToggle(STRINGS.settingsFullscreen),
     toggle(STRINGS.settingsFps, s.showFps, set('showFps')),
     toggle(STRINGS.settingsShake, s.screenShake, set('screenShake')),
   );

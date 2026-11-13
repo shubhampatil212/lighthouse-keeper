@@ -50,7 +50,7 @@ export function reactToEvent(
       kit.ring(x, y, feel.rippleRadius, PALETTE.lamp, feel.rippleSeconds);
       kit.ring(x, y, feel.rippleRadius * 0.7, PALETTE.lampHot, feel.rippleSeconds, 0.18);
       kit.burst(x, y, 6, 14, PALETTE.lampHot);
-      if (event.coins > 0) kit.pop(x, y, `+${event.coins}`, PALETTE.lamp);
+      if (event.coins > 0) kit.pop(x, y, `+${event.coins}`, PALETTE.lamp, feel.coinPopDelay);
       break;
     }
     case 'shipWrecked':

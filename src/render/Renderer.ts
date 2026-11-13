@@ -3,9 +3,9 @@
  * (blending ship poses and the beam between the last two ticks), and never changes the simulation.
  * Scenes call capture() before each tick, onEvent() for each event, and draw() once per frame.
  */
-import { Graphics, type Renderer as PixiRenderer } from 'pixi.js';
+import type { Renderer as PixiRenderer } from 'pixi.js';
 import type { Viewport } from '../app/viewport';
-import { ISLAND, REGIONS, RENDER_FEEL, SEA } from '../data';
+import { ABILITIES, HAZARDS, ISLAND, REGIONS, RENDER_FEEL } from '../data';
 import type {
   IslandBuildingId,
   QualityProfile,
@@ -14,28 +14,27 @@ import type {
   ShipTypeId,
   WeatherDef,
 } from '../data/types';
-import { lerpAngle } from '../sim/angle';
 import type { SimEvent } from '../sim/events';
 import type { World } from '../sim/world';
 import { createArrowView } from './arrowView';
-import type { ArtProvider, Point } from './art/types';
+import type { ArtProvider } from './art/types';
 import { createBeamFx } from './beamFx';
+import { createCurrentView } from './currentView';
 import { createRevealOverlay } from './debug/revealOverlay';
 import { createEffects } from './effects';
 import { createHarborView } from './harborView';
 import type { Pose } from './interpolate';
 import { createIslandView } from './islandView';
 import { applyViewport, type Layers } from './layers';
-import { beamReachThroughFog, createLightMap } from './lightMap';
-import { PALETTE } from './palette';
+import { createLightMap, type LightMapFrame } from './lightMap';
 import type { ParticleBudget } from './particles';
 import { createReefView } from './reefView';
-import { createShipView } from './shipView';
+import { createShipView, type ShipPose } from './shipView';
 import { createVesselMarks } from './vesselMarks';
 import { capturePoses, paradePoses, vesselPoses, vesselSizes } from './vessels';
+import { createNightLights } from './nightLights';
 import { createWater } from './water';
 import { createWeather } from './weather';
-import { ABILITIES, HAZARDS } from '../data';
 import { createHazardView } from './hazardView';
 import { createSecondLampView } from './secondLampView';
 import { createSkyFx } from './skyFx';
@@ -92,8 +91,7 @@ export function createNightRenderer(
   layers.darkness.addChild(lightMap.sprite);
   const beamFx = createBeamFx(art, feel);
   layers.lightFx.addChildAt(beamFx.container, 0);
-  const current = new Graphics({ label: 'current' });
-  layers.effects.addChild(current);
+  const current = createCurrentView(layers.effects);
   const effects = createEffects(layers.effects, art.textures, budget, feel);
   const arrows = createArrowView(layers.effects, feel);
   const reveal = createRevealOverlay(layers.effects, sizes);
@@ -121,25 +119,21 @@ export function createNightRenderer(
   let night: World | null = null;
   const parading = paradePoses(sizes);
 
-  const drawCurrent = (): void => {
-    current.clear();
-    if (!night || !vp) return;
-    const { currentX, currentY } = night.setup.ships;
-    const strength = Math.hypot(currentX, currentY);
-    if (strength <= 0) return;
-    const ux = currentX / strength;
-    const uy = currentY / strength;
-    const length = 14 + strength * 4;
-    const [x0, y0] = [-150 - (ux * length) / 2, -150 - (uy * length) / 2];
-    const [x1, y1] = [x0 + ux * length, y0 + uy * length];
-    current
-      .moveTo(x0, y0)
-      .lineTo(x1, y1)
-      .moveTo(x1 - ux * 6 - uy * 4, y1 - uy * 6 + ux * 4)
-      .lineTo(x1, y1)
-      .lineTo(x1 - ux * 6 + uy * 4, y1 - uy * 6 - ux * 4)
-      .stroke({ color: PALETTE.seaCrest, width: 1.5 / vp.scale, alpha: 0.4, cap: 'round' });
+  // Objects reused every frame, so drawing a night makes (almost) no garbage.
+  const poses: ShipPose[] = [];
+  const lights = createNightLights();
+  const lightFrame: LightMapFrame = {
+    beamAngle: 0,
+    beam: { halfAngle: 0, range: 0, turnSpeed: 0, glowRadius: 0 },
+    buoys: [],
+    lanterns: [],
+    mapLit: false,
+    lamp2: null,
+    fog: [],
+    fogRangeFactor: HAZARDS.fog.rangeFactor,
+    time: 0,
   };
+  const lanternAt = (id: number): ReturnType<typeof ships.lanternAt> => ships.lanternAt(id);
 
   return {
     setNight(world) {
@@ -154,7 +148,7 @@ export function createNightRenderer(
       harbors.setNight(world);
       ships.clear();
       effects.clear();
-      drawCurrent();
+      current.draw(world, vp?.scale ?? 1);
     },
     capture(world) {
       previousBeam = world.state.beam.angle;
@@ -179,87 +173,36 @@ export function createNightRenderer(
       applyViewport(layers, vp, shake.x, shake.y);
       lightMap.setOffset(shake.x, shake.y);
 
-      const angle = lerpAngle(previousBeam, state.beam.angle, alpha);
-      const lamp2 = state.lamp2
-        ? {
-            x: state.lamp2.x,
-            y: state.lamp2.y,
-            angle: lerpAngle(previousLamp2, state.lamp2.angle, alpha),
-          }
-        : null;
-      const lamp = art.island.lampPoint;
-      // Fog stops the beam short: the glow in the air and the lit water end where the light does.
-      const fogFactor = HAZARDS.fog.rangeFactor;
-      const reach = beamReachThroughFog(0, 0, angle, setup.beam.range, state.fogBands, fogFactor);
-      water.update(
-        seaTime,
-        {
-          angle,
-          halfAngle: setup.beam.halfAngle,
-          range: reach,
-          glowRadius: setup.beam.glowRadius,
-        },
-        { x: vp.centerX + lamp.x * vp.scale, y: vp.centerY + lamp.y * vp.scale },
-        ISLAND.radius,
-      );
+      const lit = lights.update(world, previousBeam, previousLamp2, alpha, vp, art.island.lampPoint);
+      const { angle, lamp2, reachBeam, reachBeam2 } = lit;
+      water.update(seaTime, lit.water, lit.lampOnScreen, ISLAND.radius, lit.water2);
       reefs.draw(world, dt, time);
 
-      const poses = vesselPoses(world, previous, alpha);
+      vesselPoses(world, previous, alpha, poses);
       const pools = ships.draw(parade ? [...poses, ...parading] : poses, dt, seaTime);
       harbors.draw(time);
-      marks.draw(world, poses, (id) => ships.lanternAt(id), time, 1 / vp.scale);
+      marks.draw(world, poses, lanternAt, time, 1 / vp.scale);
       island.draw(time);
 
-      lightMap.draw({
-        beamAngle: angle,
-        beam: setup.beam,
-        buoys: setup.buoys,
-        lanterns: pools,
-        mapLit: state.mapLight > 0 || parade,
-        floodColor: sky.floodColor() ?? undefined,
-        lamp2: lamp2 ? { ...lamp2, glowRadius: ABILITIES.secondLamp.glowRadius } : null,
-        fog: state.fogBands,
-        fogRangeFactor: fogFactor,
-        time,
-      });
-      beamFx.draw(angle, { ...setup.beam, range: reach }, time);
-      const reach2 = lamp2
-        ? beamReachThroughFog(
-            lamp2.x,
-            lamp2.y,
-            lamp2.angle,
-            setup.beam.range,
-            state.fogBands,
-            fogFactor,
-          )
-        : setup.beam.range;
-      beamFx.drawSecond(lamp2, { ...setup.beam, range: reach2 }, time);
+      lightFrame.beamAngle = angle;
+      lightFrame.beam = setup.beam;
+      lightFrame.buoys = setup.buoys;
+      lightFrame.lanterns = pools;
+      lightFrame.mapLit = state.mapLight > 0 || parade;
+      lightFrame.floodColor = sky.floodColor() ?? undefined;
+      lightFrame.lamp2 = lamp2;
+      lightFrame.fog = state.fogBands;
+      lightFrame.time = time;
+      lightMap.draw(lightFrame);
+      beamFx.draw(angle, reachBeam, time);
+      beamFx.drawSecond(lamp2, reachBeam2, time);
       hazards.draw(world, seaDt, seaTime);
       secondLamp.draw(lamp2, ABILITIES.secondLamp.isletRadius, state.activeLamp, time);
       sky.update(dt, time);
       weather.update(seaDt, seaTime, angle, setup.beam);
 
-      const due: (Point & { inSeconds: number })[] = [];
-      if (state.status === 'playing') {
-        for (let i = state.spawnIndex; i < setup.spawns.length; i++) {
-          const order = setup.spawns[i];
-          if (!order) continue;
-          const inSeconds = order.at - state.time;
-          if (inSeconds > feel.arrowLookAhead) break;
-          due.push({
-            x: Math.cos(order.angle) * SEA.spawnRadius,
-            y: Math.sin(order.angle) * SEA.spawnRadius,
-            inSeconds,
-          });
-        }
-      }
       // Edge arrows point at ships only (not pirates or the coast guard).
-      arrows.draw(
-        vp,
-        poses.filter((p) => p.type in types),
-        due,
-        time,
-      );
+      arrows.draw(vp, world, poses, types, time);
       reveal.draw(world, poses, revealAll, 1 / vp.scale);
     },
     resize(next) {
@@ -270,8 +213,9 @@ export function createNightRenderer(
       weather.resize(next);
       const textResolution = Math.max(1, next.scale * next.resolution);
       ships.setTextResolution(textResolution);
+      ships.setViewScale(next.scale);
       effects.setTextResolution(textResolution);
-      drawCurrent();
+      current.draw(night, next.scale);
     },
     setQuality(profile) {
       budget.cap = profile.particleCap;

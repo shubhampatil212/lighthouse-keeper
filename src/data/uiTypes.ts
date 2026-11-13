@@ -85,6 +85,8 @@ export interface GameSettings {
   highContrastReefs: boolean;
   largerText: boolean;
   haptics: boolean;
+  /** The title's "Add to home screen" hint was closed (not shown in the Settings screen). */
+  installHintDismissed: boolean;
 }
 
 /** Timing and thresholds for menus, the HUD and the results screen. */
@@ -95,6 +97,8 @@ export interface UiFeelConfig {
   dawnMs: number;
   starDelayMs: number;
   starIntervalMs: number;
+  /** After the last star lands, the buttons wait this long before they fade in (a beat to enjoy it). */
+  starHoldMs: number;
   /** How long a short notice ("toast") stays up. */
   toastMs: number;
   /** Saves are written this long after the last change (settings sliders change many times a second). */

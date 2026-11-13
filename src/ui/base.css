@@ -20,6 +20,18 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
   user-select: none;
+  /* No long-press callout (save image, look up) anywhere in the game. */
+  -webkit-touch-callout: none;
+  /* Stop iOS from resizing text when the phone rotates. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Pinned in place: iOS Safari otherwise lets the whole page rubber-band and scroll. */
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 /* Components set their own display; `hidden` must still win. */
@@ -30,6 +42,18 @@ body {
 #stage {
   position: fixed;
   inset: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* While the phone rotates the sea fades out, so a frame drawn at the old size never shows stretched. */
+#stage canvas {
+  transition: opacity 200ms ease;
+}
+
+#stage.is-rotating canvas {
+  opacity: 0;
+  transition-duration: 60ms;
 }
 
 #stage canvas {

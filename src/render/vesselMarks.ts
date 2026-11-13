@@ -68,11 +68,13 @@ export function createVesselMarks(layer: Container): VesselMarks {
   layer.addChild(g);
   let colorblind = false;
   const feel = VESSEL_FEEL;
+  const byId = new Map<number, ShipPose>();
 
   return {
     draw(world, poses, lanternAt, time, pixel) {
       g.clear();
-      const byId = new Map(poses.map((p) => [p.id, p]));
+      byId.clear();
+      for (const p of poses) byId.set(p.id, p);
       const { state, setup } = world;
       const multiHarbor = setup.harbors.length > 1;
 

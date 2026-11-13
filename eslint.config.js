@@ -24,7 +24,8 @@ export default tseslint.config(
     },
   },
   {
-    files: ['eslint.config.js'],
+    // Plain-JavaScript build tools (the icon maker runs on Node without a TypeScript step).
+    files: ['eslint.config.js', 'tools/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
   },
   {

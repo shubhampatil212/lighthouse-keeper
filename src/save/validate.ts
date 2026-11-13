@@ -69,6 +69,7 @@ function readSettings(v: unknown): GameSettings {
     highContrastReefs: bool(s.highContrastReefs, d.highContrastReefs),
     largerText: bool(s.largerText, d.largerText),
     haptics: bool(s.haptics, d.haptics),
+    installHintDismissed: bool(s.installHintDismissed, d.installHintDismissed),
   };
 }
 

@@ -2,18 +2,17 @@
  * Hazards that live on the water: thick fog bands, whirlpools and storm waves. All are drawn above the
  * darkness so they read in the dark (faintly), and brighter where the light falls.
  * - Fog band: overlapping soft fog puffs along the band, slowly breathing and drifting.
- * - Whirlpool: spiral arms turning round a dark core ringed in rust (the deadly part), with a faint
- *   dashed circle where the pull begins.
- * - Storm waves: crest lines rolling across the sea in the push direction; a bold arrow by the island
- *   for a few seconds whenever the waves change direction.
+ * - Whirlpools (whirlpoolView.ts) and storm waves (waveView.ts).
  */
-import { Container, Graphics, Sprite } from 'pixi.js';
+import { Container, Sprite } from 'pixi.js';
 import type { RenderFeelConfig, WhirlpoolConfig } from '../data/types';
 import type { FogBand } from '../sim/fog';
 import type { World } from '../sim/world';
 import type { ArtTextures } from './art/types';
 import { GLOW_TEXTURE_RADIUS } from './art/types';
 import { PALETTE } from './palette';
+import { createWaveView } from './waveView';
+import { createWhirlpoolView } from './whirlpoolView';
 
 export interface HazardView {
   setFogColor(color: number): void;
@@ -32,10 +31,6 @@ const scatter = (i: number, salt: number): number => {
   const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
-const SPIRAL_ARMS = 4;
-const SPIRAL_POINTS = 14;
-/** Area the wave crests cover (world units, a square round the island). */
-const WAVE_FIELD = 260;
 
 export function createHazardView(
   layers: { lightFx: Container; reefs: Container },
@@ -43,18 +38,14 @@ export function createHazardView(
   whirlpool: WhirlpoolConfig,
   feel: RenderFeelConfig,
 ): HazardView {
+  const waves = createWaveView(layers.lightFx, scatter, feel);
+  const whirlpools = createWhirlpoolView(layers, whirlpool, feel);
   const fogBox = new Container({ label: 'fogBands' });
-  const swirl = new Graphics({ label: 'whirlpools', blendMode: 'add' });
-  const cores = new Graphics({ label: 'whirlpoolCores' });
-  const waves = new Graphics({ label: 'stormWaves', blendMode: 'add' });
-  const cue = new Graphics({ label: 'waveCue' });
-  layers.reefs.addChild(cores);
-  layers.lightFx.addChild(waves, swirl, fogBox, cue);
+  layers.lightFx.addChild(fogBox);
 
   let fogColor: number = PALETTE.fog;
   let bandsSeen: readonly FogBand[] = [];
   let bandCount = 0;
-  let cueAge = Infinity;
   /** Puffs per band, rebuilt when the list of bands changes. */
   let puffs: { sprite: Sprite; band: FogBand; along: number; phase: number }[] = [];
 
@@ -95,123 +86,31 @@ export function createHazardView(
     }
   };
 
-  const drawWhirlpools = (world: World, time: number): void => {
-    swirl.clear();
-    cores.clear();
-    const { pullRadius, coreRadius } = whirlpool;
-    for (const w of world.state.whirlpools) {
-      const lit = world.isLit(w.x, w.y);
-      const alpha = lit ? feel.whirlpoolLitAlpha : feel.whirlpoolDarkAlpha;
-      const spin = time * feel.whirlpoolSpin;
-      for (let arm = 0; arm < SPIRAL_ARMS; arm++) {
-        const base = spin + (arm * Math.PI * 2) / SPIRAL_ARMS;
-        for (let i = 0; i <= SPIRAL_POINTS; i++) {
-          const t = i / SPIRAL_POINTS;
-          const r = coreRadius + (pullRadius * 0.95 - coreRadius) * t;
-          // Arms curl tighter toward the centre; y squashed for the 2.5D view.
-          const a = base + (1 - t) * 3.2;
-          const x = w.x + Math.cos(a) * r;
-          const y = w.y + Math.sin(a) * r * 0.85;
-          if (i === 0) swirl.moveTo(x, y);
-          else swirl.lineTo(x, y);
-        }
-        swirl.stroke({ color: PALETTE.seaCrest, width: 1.6, alpha, cap: 'round' });
-      }
-      // Where the pull begins: a faint dashed circle.
-      const dashes = 24;
-      for (let i = 0; i < dashes; i += 2) {
-        const a0 = (i / dashes) * Math.PI * 2 + spin * 0.2;
-        const a1 = ((i + 1) / dashes) * Math.PI * 2 + spin * 0.2;
-        swirl
-          .moveTo(w.x + Math.cos(a0) * pullRadius, w.y + Math.sin(a0) * pullRadius * 0.85)
-          .lineTo(w.x + Math.cos(a1) * pullRadius, w.y + Math.sin(a1) * pullRadius * 0.85);
-      }
-      swirl.stroke({ color: PALETTE.seaCrest, width: 1, alpha: alpha * 0.5 });
-      // The deadly core: a dark hole (under the darkness) and a rust ring that throbs.
-      cores
-        .ellipse(w.x, w.y, coreRadius * 1.3, coreRadius * 1.1)
-        .fill({ color: 0x03080b, alpha: 0.8 });
-      const throb = 0.6 + 0.4 * Math.sin(time * 4);
-      swirl
-        .ellipse(w.x, w.y, coreRadius, coreRadius * 0.85)
-        .stroke({ color: PALETTE.rust, width: 2, alpha: Math.min(1, alpha * 2.4 * throb) });
-    }
-  };
-
-  const drawWaves = (world: World, dt: number, time: number): void => {
-    waves.clear();
-    cue.clear();
-    const state = world.state.waves;
-    if (!state) return;
-    const ux = Math.cos(state.angle);
-    const uy = Math.sin(state.angle);
-    const travel = time * feel.waveSpeed;
-    const half = feel.waveCrestLength / 2;
-    for (let i = 0; i < feel.waveStreaks; i++) {
-      // A fixed scatter of crests, all rolling along the push direction.
-      const fx = scatter(i, 1) * 2 - 1;
-      const fy = scatter(i, 2) * 2 - 1;
-      const span = WAVE_FIELD * 2;
-      const along = (((((fy + 1) * WAVE_FIELD + travel) % span) + span) % span) - WAVE_FIELD;
-      const acrossPos = fx * WAVE_FIELD;
-      const x = ux * along - uy * acrossPos;
-      const y = uy * along + ux * acrossPos;
-      const fade = 1 - Math.abs(along) / WAVE_FIELD;
-      // A slightly bowed crest across the direction of travel.
-      waves
-        .moveTo(x + uy * half, y - ux * half)
-        .quadraticCurveTo(x + ux * 3, y + uy * 3, x - uy * half, y + ux * half)
-        .stroke({
-          color: PALETTE.seaCrest,
-          width: 1.3,
-          alpha: feel.waveAlpha * fade,
-          cap: 'round',
-        });
-    }
-    cueAge += dt;
-    if (cueAge < feel.waveCueSeconds) {
-      const t = cueAge / feel.waveCueSeconds;
-      const alpha = (t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85) * 0.9;
-      const r0 = 58 + t * 10;
-      const len = 26;
-      const [x0, y0] = [ux * r0, uy * r0];
-      const [x1, y1] = [x0 + ux * len, y0 + uy * len];
-      cue
-        .moveTo(x0, y0)
-        .lineTo(x1, y1)
-        .moveTo(x1 - ux * 8 - uy * 6, y1 - uy * 8 + ux * 6)
-        .lineTo(x1, y1)
-        .lineTo(x1 - ux * 8 + uy * 6, y1 - uy * 8 - ux * 6)
-        .stroke({ color: PALETTE.parchment, width: 2.4, alpha, cap: 'round', join: 'round' });
-    }
-  };
-
   return {
     setFogColor(color) {
       fogColor = color;
       for (const p of puffs) p.sprite.tint = color;
     },
     showWaveCue() {
-      cueAge = 0;
+      waves.showCue();
     },
     draw(world, dt, time) {
       drawFog(world, time);
-      drawWhirlpools(world, time);
-      drawWaves(world, dt, time);
+      whirlpools.draw(world, time);
+      waves.draw(world, dt, time);
     },
     clear() {
       for (const c of fogBox.removeChildren()) c.destroy();
       puffs = [];
       bandsSeen = [];
       bandCount = 0;
-      cueAge = Infinity;
-      swirl.clear();
-      cores.clear();
       waves.clear();
-      cue.clear();
+      whirlpools.clear();
     },
     destroy() {
-      for (const c of [fogBox, swirl, cores, waves, cue]) c.destroy({ children: true });
+      fogBox.destroy({ children: true });
+      waves.destroy();
+      whirlpools.destroy();
     },
   };
 }

@@ -65,6 +65,9 @@ export function createSkyFx(
   let flashAge = Infinity;
   let flareAge = Infinity;
   let hornAge = Infinity;
+  let ringsDrawn = false;
+  let flashWidth = 0;
+  let flashHeight = 0;
 
   const drawBolt = (): void => {
     bolt.clear();
@@ -130,7 +133,11 @@ export function createSkyFx(
       flash.visible = f < 1;
       if (flash.visible && vp) {
         const strength = reducedMotion ? 0.35 : 1;
-        flash.clear().rect(0, 0, vp.width, vp.height).fill(COLD_LIGHT);
+        if (flashWidth !== vp.width || flashHeight !== vp.height) {
+          flashWidth = vp.width;
+          flashHeight = vp.height;
+          flash.clear().rect(0, 0, vp.width, vp.height).fill(COLD_LIGHT);
+        }
         flash.alpha = feel.lightningFlashAlpha * strength * (1 - f) * (1 - f);
       }
       bolt.visible = flashAge < 0.18;
@@ -157,8 +164,10 @@ export function createSkyFx(
       }
 
       // Foghorn: three rings rolling out to the horn's reach.
-      rings.clear();
-      for (let i = 0; i < 3; i++) {
+      const horn = hornAge < 0.5 + feel.hornRingSeconds;
+      if (horn || ringsDrawn) rings.clear();
+      ringsDrawn = horn;
+      for (let i = 0; horn && i < 3; i++) {
         const age = hornAge - i * 0.25;
         const h = age / feel.hornRingSeconds;
         if (h < 0 || h >= 1) continue;

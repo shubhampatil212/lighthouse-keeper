@@ -13,6 +13,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "playtest": "vitest run --config vitest.playtest.config.ts",
+    "icons": "node tools/icons/makeIcons.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sim.json",
     "format": "prettier --write ."

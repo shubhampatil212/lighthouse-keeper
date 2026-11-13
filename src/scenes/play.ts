@@ -5,20 +5,11 @@
  */
 import { isWatchId } from '../app/endless';
 import type { Viewport } from '../app/viewport';
-import {
-  ABILITIES,
-  CONTROLS,
-  ISLAND_BUILDINGS,
-  NO_UPGRADES,
-  PLAY,
-  SHIP_TYPES,
-  VIEWPORT,
-} from '../data';
-import type { LevelDef, TutorialPromptId, Upgrades, WatchDef } from '../data/types';
+import { CONTROLS, ISLAND_BUILDINGS, NO_UPGRADES, PLAY, SHIP_TYPES, VIEWPORT } from '../data';
+import type { LevelDef, Upgrades, WatchDef } from '../data/types';
 import { createInputController, type InputController } from '../input/controller';
 import { createSafeRing, drawSafeRing } from '../render/debug/safeRing';
 import { createNightRenderer, type NightRenderer } from '../render/Renderer';
-import { foghornCooldown } from '../sim/abilities';
 import { createWorld, type World, type WorldOptions } from '../sim/world';
 import type { DebugPanel } from '../ui/debugPanel';
 import { createHud } from '../ui/hud';
@@ -28,6 +19,7 @@ import { createNightLog, type NightLog } from './nightLog';
 import type { PlayScene, PlaySceneOptions } from './playTypes';
 import { regionFor, weatherFor } from './playLook';
 import { createPlayHints } from './playHints';
+import { createHudInfo, tutorialText } from './playHud';
 import { createPlayFeedback } from './playFeedback';
 import { createPlaySound } from './playSound';
 import { createTutorial, type Tutorial } from './tutorial';
@@ -153,12 +145,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   };
   hud.setLevel(levelCode(level), level.name);
 
-  const tutorialText = (id: TutorialPromptId): string => {
-    if (id !== 'swingBeam') return STRINGS.tutorial[id];
-    return settings.style === 'drag'
-      ? STRINGS.tutorial.swingBeamDrag
-      : STRINGS.tutorial.swingBeamFollow;
-  };
+  const hudInfo = createHudInfo();
 
   return {
     get settings() {
@@ -276,7 +263,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
         }
       }
       const hint = hints.step(dt);
-      const lessonText = lesson?.prompt ? tutorialText(lesson.prompt) : null;
+      const lessonText = lesson?.prompt ? tutorialText(lesson.prompt, settings) : null;
       hud.prompt(lessonText ?? (hint ? STRINGS.hint[hint] : null));
       if (endIn !== null) {
         endIn -= dt;
@@ -291,25 +278,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       const frameSeconds = lastFrame === null ? 0 : Math.min(0.1, (now - lastFrame) / 1000);
       lastFrame = now;
       view?.draw(world, paused ? 1 : alpha, paused ? 0 : frameSeconds);
-      const { state, setup } = world;
-      const owned = setup.upgrades;
-      hud.update({
-        spawned: state.spawnIndex,
-        total: setup.endless ? 0 : setup.spawns.length,
-        saved: state.saved,
-        allowance: setup.difficulty.wreckAllowance,
-        wrecked: state.wrecked,
-        caught: state.caught,
-        foghorn:
-          owned.foghorn > 0
-            ? {
-                cooldown: state.abilities.foghornCooldown,
-                full: foghornCooldown(ABILITIES.foghorn, owned.foghorn),
-              }
-            : null,
-        flares: owned.flares > 0 ? state.abilities.flares : null,
-        lamp: state.lamp2 ? state.activeLamp : null,
-      });
+      hud.update(hudInfo(world));
       if (debugPanel?.open) debugPanel.showWorld(world, paused);
     },
     resize(vp: Viewport) {
