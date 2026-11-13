@@ -74,8 +74,8 @@ describe('ending the night', () => {
       wrecked: 0,
       total: 6,
       bonusMet: true,
-      // Storm pays ×1.25: 4 × round(12.5) + 2 × round(18.75).
-      coins: 4 * 13 + 2 * 19,
+      // Storm pays ×1.25: 4 fishing boats at round(5 × 1.25) + 2 cargo ships at round(8 × 1.25).
+      coins: 4 * 6 + 2 * 10,
     });
     expect(events.filter((e) => e.type === 'levelEnded')).toHaveLength(1);
     expect(events.at(-1)?.type).toBe('levelEnded');

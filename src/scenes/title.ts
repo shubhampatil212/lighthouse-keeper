@@ -72,7 +72,7 @@ export function createTitleScene(ctx: GameContext): Scene {
         button(STRINGS.titleCredits, () => void ctx.nav.go(SCENE.credits), { variant: 'quiet' }),
         h('span', {
           className: 'title-screen__version',
-          textContent: STRINGS.version(ctx.version),
+          textContent: STRINGS.version(ctx.version, __BUILD_DATE__),
         }),
       ),
     );

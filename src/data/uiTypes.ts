@@ -54,6 +54,8 @@ export interface CampaignLevelDef {
   id: string;
   name: string;
   introduces: IntroId | null;
+  /** A second thing it brings in (3-1 has both lightning and the flare). */
+  alsoIntroduces?: IntroId;
 }
 
 export interface CampaignRegionDef {

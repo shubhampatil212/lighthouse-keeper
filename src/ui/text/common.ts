@@ -18,10 +18,12 @@ export const COMMON = {
   canvasLabel: 'The sea at night, seen from the lighthouse',
   seaLandmark: 'The sea',
   hudLandmark: 'Night status',
-  bootError: 'The lamp would not light. Please reload the page.',
+  crashTitle: 'Something went wrong',
+  crashBody: 'Your progress is saved. Reload to keep playing.',
+  crashReload: 'Reload',
   gameTitleTop: 'Lighthouse',
   gameTitleBottom: 'Keeper',
-  version: (v: string) => `Version ${v}`,
+  version: (v: string, built: string) => `Version ${v} · built ${built}`,
   back: 'Back',
   close: 'Close',
   locked: 'Locked',
@@ -36,7 +38,7 @@ export const COMMON = {
     harborBay: 'Harbor Bay',
     northernIce: 'Northern Ice',
     stormStrait: 'Storm Strait',
-    smugglersCove: "Smugglers' Cove",
+    smugglersCove: 'Smugglers’ Cove',
     archipelago: 'Lantern Archipelago',
   } satisfies Record<RegionId, string>,
 
@@ -61,7 +63,7 @@ export const COMMON = {
   upgradeEffect: {
     lens: 'A wider beam: lights more of the sea at once.',
     lamp: 'The beam reaches further out to sea.',
-    gears: 'The beam swings round faster.',
+    gears: 'The beam swings around faster.',
     foghorn: 'Slows every ship near the island for a moment. Each level makes it ready sooner.',
     flares: 'Lights the whole sea for a moment. One more flare per night for each level.',
   } satisfies Record<UpgradeId, string>,
@@ -86,7 +88,7 @@ export const COMMON = {
       case 'noAbility':
         return def.ability === 'flare' ? 'Never fire a flare' : 'Never sound the foghorn';
       case 'driveOffPirates':
-        return `Drive pirates away ${def.count === 1 ? 'once' : `${def.count} times`}`;
+        return `Drive pirates away ${def.count === 1 ? 'once' : def.count === 2 ? 'twice' : `${def.count} times`}`;
     }
   },
   bonusDone: 'Done',
@@ -102,7 +104,9 @@ export const COMMON = {
   abilityFlare: 'Flare',
   abilitySwitchLamp: 'Switch lamp',
   abilityFoghornLabel: (seconds: number) =>
-    seconds > 0 ? `Foghorn, ready in ${Math.ceil(seconds)} seconds` : 'Foghorn, ready',
+    seconds > 0
+      ? `Foghorn, ready in ${plural(Math.ceil(seconds), 'second', 'seconds')}`
+      : 'Foghorn, ready',
   abilityFlareLabel: (charges: number) => `Flare, ${plural(charges, 'charge', 'charges')} left`,
   abilitySwitchLampLabel: 'Switch which lighthouse you steer',
 } as const;

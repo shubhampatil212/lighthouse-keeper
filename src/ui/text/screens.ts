@@ -38,7 +38,7 @@ export const SCREENS = {
   endlessLocked: 'Finish Harbor Bay to open the endless watch.',
   titleDaily: 'Daily sea',
   installHintPrompt: 'Add Lighthouse Keeper to your home screen to play full screen, even offline.',
-  installHintIos: 'To play full screen and offline, tap Share, then Add to Home Screen.',
+  installHintIos: 'To play full screen and offline, tap Share, then “Add to Home Screen”.',
   installHintButton: 'Install',
   installHintClose: 'Not now',
 
@@ -69,7 +69,8 @@ export const SCREENS = {
   hudPause: 'Pause',
   hudProgressLabel: (name: string) => `${name}: ships still to come`,
   hudSaved: (n: number) => `${plural(n, 'ship', 'ships')} home`,
-  hudSpareHulls: (n: number) => `Can still lose ${n}`,
+  hudSpareHulls: (n: number) =>
+    n === 0 ? 'No ship can be lost' : `Can still lose ${plural(n, 'ship', 'ships')}`,
   hudCaught: (n: number) => `${plural(n, 'smuggler', 'smugglers')} caught`,
 
   // Contextual prompts
@@ -78,7 +79,7 @@ export const SCREENS = {
     smuggler: 'A smuggler! Hold the light on it for 2 seconds to catch it.',
     ferry: 'The ferry is precious. If it sinks, the night is lost.',
     pirate: 'A pirate! Shine on it to drive it away.',
-    whirlpool: 'Light ships near the whirlpool so they steer round it.',
+    whirlpool: 'Light ships near the whirlpool so they steer around it.',
     lightning: 'Lightning soon. Look around while the sea is bright.',
     cargo: 'Cargo ships turn slowly. Light them early so they have room.',
     sailboat: 'Sailboats drift with the current when they’re in the dark.',
@@ -105,7 +106,7 @@ export const SCREENS = {
   pauseResume: 'Resume',
   pauseRestart: 'Restart',
   pauseSettings: 'Settings',
-  pauseQuit: 'Quit to map',
+  pauseQuit: 'Quit to chart',
 
   // Results
   resultsSaved: 'Ships home',
@@ -122,7 +123,7 @@ export const SCREENS = {
     dock: 'A dock for the supply boat',
     chapel: 'A chapel on the hill',
     market: 'A market by the quay',
-    festivalLights: 'Festival lights round the island',
+    festivalLights: 'Festival lights around the island',
   } satisfies Record<IslandBuildingId, string>,
   unlockDiary: 'A new page in your logbook',
   unlockShop: (upgrade: string) => `${upgrade} in the harbor shop`,
@@ -133,7 +134,7 @@ export const SCREENS = {
     precious:
       'The ferry carries everyone’s hopes. Keep it lit the whole way in, even if others wait.',
     pirate: 'Pirates hunt ships in the dark. Shine on them early and they turn tail.',
-    whirlpool: 'Ships near the whirlpool need your light so they can steer round it.',
+    whirlpool: 'Ships near the whirlpool need your light so they can steer around it.',
     iceberg: 'Icebergs drift. Sweep past them now and then so ships see where they’ve moved.',
     dark: 'Ships drifted in the dark too long. Try shorter, faster sweeps.',
     late: 'Ships met the rocks soon after you found them. Light them earlier, while they’re still out at sea.',
@@ -141,12 +142,12 @@ export const SCREENS = {
   } satisfies Record<TipKey, string>,
 
   // Endless results
-  endlessScore: (n: number) => `${n} points`,
+  endlessScore: (n: number) => plural(n, 'point', 'points'),
   endlessNewBest: 'A new best!',
   endlessBest: 'Best',
   endlessDaily: (date: string) => `Daily sea · ${date}`,
   endlessAgain: 'Again',
-  endlessTitle: 'Title',
+  endlessTitle: 'Title screen',
 
   // Harbor shop
   shopTitle: 'Harbor',
@@ -154,10 +155,10 @@ export const SCREENS = {
   shopBuy: (cost: number) => `${cost}`,
   shopMaxed: 'Full',
   shopBought: (name: string) => `${name} fitted.`,
-  shopOpensAfter: (levelId: string) => `Sold after night ${levelId}.`,
+  shopOpensAfter: (levelId: string) => `Sold after Night ${levelId}.`,
   shopBuoysTitle: 'Bell buoys',
   shopBuoysLine: (levelName: string) =>
-    `A buoy lights a small circle round a reef. Place it on the chart for “${levelName}”.`,
+    `A buoy lights a small circle around a reef. Place it on the chart for “${levelName}”.`,
   shopBuoyCount: (n: number, max: number, region: string) => `${n} of ${max} placed in ${region}.`,
   shopBuoyPick: 'Tap a reef on the chart.',
   shopBuoyPlace: (cost: number) => `Place buoy · ${cost}`,
@@ -215,7 +216,7 @@ export const SCREENS = {
     'Your saved progress couldn’t be read, so a new watch begins. A copy was kept on this device.',
   settingsReset: 'Reset progress',
   settingsResetConfirm: 'Tap again to erase everything',
-  settingsResetDone: 'Progress erased',
+  settingsResetDone: 'Progress erased.',
   settingsResetToast: 'A new keeper takes the watch.',
 
   // Screen reader announcements during a night

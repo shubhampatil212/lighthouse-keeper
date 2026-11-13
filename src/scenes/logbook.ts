@@ -41,7 +41,7 @@ const FROM_START: readonly IntroId[] = ['fishing', 'reef', 'current'];
 /** Met once the level that brings it in has been reached (its predecessor cleared, or it is). */
 function discovered(p: Progress, id: IntroId): boolean {
   if (FROM_START.includes(id)) return p.started;
-  const i = ALL_LEVELS.findIndex((l) => l.introduces === id);
+  const i = ALL_LEVELS.findIndex((l) => l.introduces === id || l.alsoIntroduces === id);
   const level = ALL_LEVELS[i];
   if (!level) return false;
   const before = ALL_LEVELS[i - 1];

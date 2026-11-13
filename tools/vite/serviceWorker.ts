@@ -6,6 +6,8 @@
  *   offline, so a new version reaches players the next time they open the game online.
  * - The cache is named after the build, and older caches are deleted when a new worker takes over.
  * A new worker waits until every tab of the old version is closed, so a running game never loses files.
+ * Every path is relative to the worker's own folder, so the game works at a site's root or in a
+ * sub-folder (GitHub Pages serves it at /<repository>/).
  */
 import { readdirSync } from 'node:fs';
 import type { Plugin } from 'vite';
@@ -31,6 +33,8 @@ const CACHE = ${JSON.stringify(cache)};
 const FILES = ${JSON.stringify(files)};
 // Servers often send "Vary: Origin"; scripts and fonts are requested in CORS mode, so match by URL alone.
 const MATCH = { ignoreVary: true };
+// The game's own page: the folder this worker lives in.
+const PAGE = new URL('./', self.location.href).href;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(FILES)));
@@ -61,11 +65,11 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response.ok) {
             const copy = response.clone();
-            event.waitUntil(caches.open(CACHE).then((cache) => cache.put('/', copy)));
+            event.waitUntil(caches.open(CACHE).then((cache) => cache.put(PAGE, copy)));
           }
           return response;
         })
-        .catch(() => caches.match('/', MATCH).then((hit) => hit || Response.error())),
+        .catch(() => caches.match(PAGE, MATCH).then((hit) => hit || Response.error())),
     );
     return;
   }
@@ -88,7 +92,7 @@ export function serviceWorker(): Plugin {
             .map((name) => `${dir}/${name}`),
         ),
       ];
-      const files = ['/', ...[...built, ...fromPublic].map((name) => `/${name}`)].sort();
+      const files = ['./', ...[...built, ...fromPublic].map((name) => `./${name}`)].sort();
       this.emitFile({
         type: 'asset',
         fileName: 'sw.js',

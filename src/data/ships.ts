@@ -9,7 +9,7 @@ export const SHIP_TYPES: Record<ShipTypeId, ShipTypeConfig> = {
     speed: 18,
     length: 13,
     width: 6,
-    coins: 10,
+    coins: 5,
     turnRateMultiplier: 1,
     avoidPadding: 46,
     precious: false,
@@ -19,7 +19,7 @@ export const SHIP_TYPES: Record<ShipTypeId, ShipTypeConfig> = {
     speed: 12,
     length: 22,
     width: 9,
-    coins: 15,
+    coins: 8,
     turnRateMultiplier: 0.7,
     // "Needs a wider path around reefs": 10 wu more room than a fishing boat.
     avoidPadding: 56,
@@ -30,7 +30,7 @@ export const SHIP_TYPES: Record<ShipTypeId, ShipTypeConfig> = {
     speed: 16,
     length: 12,
     width: 5,
-    coins: 10,
+    coins: 5,
     turnRateMultiplier: 1,
     avoidPadding: 46,
     precious: false,
@@ -41,7 +41,7 @@ export const SHIP_TYPES: Record<ShipTypeId, ShipTypeConfig> = {
     speed: 13,
     length: 24,
     width: 9,
-    coins: 30,
+    coins: 15,
     turnRateMultiplier: 1,
     avoidPadding: 46,
     precious: true,
@@ -51,7 +51,7 @@ export const SHIP_TYPES: Record<ShipTypeId, ShipTypeConfig> = {
     speed: 20,
     length: 11,
     width: 7,
-    coins: 10,
+    coins: 5,
     turnRateMultiplier: 1,
     avoidPadding: 46,
     precious: false,
@@ -76,10 +76,10 @@ export const TUG: TugConfig = {
   speedFactor: 0.5,
 };
 
-/** "Keep it lit for 2 s to catch it" (+25 coins); then a coast guard boat tows it away. */
+/** "Keep it lit for 2 s to catch it" (+15 coins); then a coast guard boat tows it away. */
 export const SMUGGLER: SmugglerConfig = {
   catchSeconds: 2,
-  catchBonus: 25,
+  catchBonus: 15,
   exitOffsetMin: 0.35,
   exitOffsetMax: 0.7,
   escapeMargin: 4,

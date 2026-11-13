@@ -16,7 +16,8 @@ const listeners = new Set<() => void>();
 export function registerServiceWorker(): void {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    // Relative to the page, so it works at the site root and under GitHub Pages' /<repository>/.
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => undefined);
   });
 }
 
@@ -34,7 +35,9 @@ window.addEventListener('appinstalled', () => {
 /** True when the game is running as an installed app (from the home screen). */
 export function isInstalled(): boolean {
   const iosStandalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return iosStandalone || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  return (
+    iosStandalone || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches
+  );
 }
 
 /** How this browser can add the game to the home screen: its own prompt, Safari's Share menu, or not at all. */

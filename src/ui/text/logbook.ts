@@ -9,7 +9,7 @@ const BRIEFINGS: Readonly<Record<string, string>> = {
   '1-3': 'They’re coming in pairs tonight, from both sides at once.',
   '1-4': 'Breeze off the shore. The sailboats will feel it most.',
   '1-5': 'Market day tomorrow. Everyone wants in before dawn.',
-  '1-6': 'Storm clouds over the bay. Keep them all off the rocks.',
+  '1-6': 'Storm clouds over the bay. Keep every ship off the rocks.',
   '2-1': 'They’re coming down from the north in threes. The horn will hold them back.',
   '2-2': 'The bergs are moving. A rock that drifts is still a rock.',
   '2-3': 'The ferry runs tonight. Forty souls aboard. Don’t lose her.',
@@ -25,7 +25,7 @@ const BRIEFINGS: Readonly<Record<string, string>> = {
   '4-1': 'Boats without lanterns in the cove. Hold them in the light.',
   '4-2': 'Word is there’s contraband aboard. Catch every smuggler.',
   '4-3': 'Black sails sighted. Pirates hate the light; use it.',
-  '4-4': 'The ferry has to pass the pirates’ water. Stay close to her.',
+  '4-4': 'The ferry has to pass the pirate’s water. Stay close to her.',
   '4-5': 'No moon tonight. The lamp feels smaller, somehow.',
   '4-6': 'The pirate king himself, and his mate. Drive them off.',
   '5-1': 'A second tower stands on the islet. Two lamps, one keeper.',
@@ -41,7 +41,7 @@ export const LOGBOOK = {
 
   intro: {
     fishing: { name: 'Fishing boat', line: 'Quick and small. The town’s bread and butter.' },
-    cargo: { name: 'Cargo ship', line: 'Slow to turn: it needs a wider path round reefs.' },
+    cargo: { name: 'Cargo ship', line: 'Slow to turn: it needs a wider path around reefs.' },
     sailboat: { name: 'Sailboat', line: 'The wind pushes it hard while it’s in the dark.' },
     ferry: { name: 'Ferry', line: 'Precious. If it sinks, the night is lost.' },
     tugboat: { name: 'Tugboat', line: 'While lit, it slows the dark ships near it.' },
@@ -50,22 +50,22 @@ export const LOGBOOK = {
       line: 'Turns away from light. Hold it lit for 2 seconds to catch it.',
     },
     pirate: { name: 'Pirate ship', line: 'Hunts ships in the dark. Light drives it away.' },
-    reef: { name: 'Reefs', line: 'Only seen in the light. Lit ships steer round them.' },
+    reef: { name: 'Reef', line: 'Only seen in the light. Lit ships steer around it.' },
     current: { name: 'Current', line: 'Pushes ships that sail in the dark.' },
-    fogBand: { name: 'Fog bank', line: 'Your beam reaches less far through it.' },
+    fogBand: { name: 'Fog band', line: 'Your beam reaches less far through it.' },
     iceberg: { name: 'Iceberg', line: 'A reef that drifts. Ships must not sail into it.' },
     lightning: {
       name: 'Lightning',
       line: 'Lights the whole sea for a moment, after a warning glow.',
     },
     stormWaves: { name: 'Storm waves', line: 'Shove every ship, lit or not.' },
-    whirlpool: { name: 'Whirlpool', line: 'Pulls ships in. Its centre sinks them.' },
+    whirlpool: { name: 'Whirlpool', line: 'Pulls ships in. Its center sinks them.' },
     secondHarbor: {
       name: 'Second harbor',
       line: 'Ships carry a color: each sails for its own harbor.',
     },
     foghorn: { name: 'Foghorn', line: 'Tap the horn to slow every ship near the island.' },
-    flares: { name: 'Flares', line: 'Tap a flare to light the whole sea for a moment.' },
+    flares: { name: 'Flares', line: 'Tap the flare to light the whole sea for a moment.' },
     secondLamp: { name: 'Second lamp', line: 'Tap to switch lamps. The other sweeps on its own.' },
     pairs: { name: 'Pairs', line: 'Ships arrive two at a time, from opposite sides.' },
     rush: { name: 'Rush', line: 'Ships come faster than before.' },
@@ -75,7 +75,7 @@ export const LOGBOOK = {
   logDetail: {
     fishing: 'Small, quick and everywhere. Fishing boats follow your light without fuss.',
     cargo:
-      'Heavy and slow to turn. Light a cargo ship early, so it has room to swing round the rocks.',
+      'Heavy and slow to turn. Light a cargo ship early, so it has room to swing around the rocks.',
     sailboat: 'Light and lively. In the dark the wind and current push it half as hard again.',
     ferry: 'Carries the town’s families. Losing a ferry ends the night at once.',
     tugboat:
@@ -86,12 +86,12 @@ export const LOGBOOK = {
       'Prowls for ships in the dark and boards them after a short chase. Light makes it flee for a while.',
     reef: 'Clusters of rock, seen only in the light. A faint outline stays for a moment after.',
     current: 'A steady drift across the sea. Only ships in the dark are carried by it.',
-    fogBand: 'Thick bands of fog. Your beam reaches a third less far through them.',
+    fogBand: 'Thick bands of fog. Your beam reaches about a third less far through them.',
     iceberg:
       'Drifting ice, wide and slow. A ship sailing head-on into it sinks; a glancing one is shoved aside.',
     lightning: 'Every so often the whole sea flashes white. A glow warns you a second before.',
-    stormWaves: 'Big waves that push every ship one way, then another every ten seconds.',
-    whirlpool: 'Pulls nearby ships toward its centre, which sinks them. Lit ships steer round it.',
+    stormWaves: 'Big waves push every ship one way, then change direction every ten seconds.',
+    whirlpool: 'Pulls nearby ships toward its center, which sinks them. Lit ships steer around it.',
     secondHarbor:
       'Two harbors, two colors. Each ship carries the color of the harbor it’s bound for.',
   } satisfies Record<ShipTypeId | SeaFeatureId, string>,

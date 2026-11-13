@@ -10,6 +10,7 @@ import './ui/kit/kit.css';
 import './ui/screens.css';
 import './ui/hud.css';
 import { wireAudio } from './app/audioWiring';
+import { watchForCrashes } from './app/crashScreen';
 import { settingsFromAddress } from './app/debugParams';
 import { withGame, wireDebug } from './app/debugWiring';
 import { createFadeTransition } from './app/fade';
@@ -25,15 +26,7 @@ import { loadGame } from './app/saveWiring';
 import { createSceneManager } from './app/sceneManager';
 import type { Viewport } from './app/viewport';
 import { watchViewport } from './app/viewportWatcher';
-import {
-  DEMO_LEVELS,
-  LEVEL_1_2,
-  LEVELS,
-  LOOP,
-  QUALITY,
-  SCENE_TRANSITION,
-  VIEWPORT,
-} from './data';
+import { DEMO_LEVELS, LEVEL_1_2, LEVELS, LOOP, QUALITY, SCENE_TRANSITION, VIEWPORT } from './data';
 import type { QualityLevel } from './data/types';
 import type { GameSettings } from './data/uiTypes';
 import { createCodeArt } from './render/art/codeArt';
@@ -53,6 +46,9 @@ function requireElement(id: string): HTMLElement {
   if (!el) throw new Error(`Missing #${id} in index.html`);
   return el;
 }
+
+// First, so even a failed start shows the gentle "Something went wrong" card.
+const crashes = watchForCrashes();
 
 async function boot(): Promise<void> {
   const host = requireElement('stage');
@@ -77,6 +73,9 @@ async function boot(): Promise<void> {
     colorblind: addressDebug.colorblind,
   });
   const { settings, progress } = saved;
+  crashes.setSaver(() => {
+    saved.flush();
+  });
   const prefsOf = (s: GameSettings): PlayPrefs => ({
     leftHanded: s.leftHanded,
     reducedMotion: s.reducedMotion,
@@ -287,9 +286,5 @@ async function boot(): Promise<void> {
 }
 
 boot().catch((error: unknown) => {
-  console.error(error);
-  const message = document.createElement('p');
-  message.className = 'boot-error';
-  message.textContent = STRINGS.bootError;
-  document.body.appendChild(message);
+  crashes.show(error);
 });

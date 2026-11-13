@@ -173,7 +173,14 @@ export function createNightRenderer(
       applyViewport(layers, vp, shake.x, shake.y);
       lightMap.setOffset(shake.x, shake.y);
 
-      const lit = lights.update(world, previousBeam, previousLamp2, alpha, vp, art.island.lampPoint);
+      const lit = lights.update(
+        world,
+        previousBeam,
+        previousLamp2,
+        alpha,
+        vp,
+        art.island.lampPoint,
+      );
       const { angle, lamp2, reachBeam, reachBeam2 } = lit;
       water.update(seaTime, lit.water, lit.lampOnScreen, ISLAND.radius, lit.water2);
       reefs.draw(world, dt, time);

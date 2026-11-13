@@ -14,7 +14,7 @@ Claude Code updates this file at the end of every phase or session.
 | 07 Audio | done (owner accepted 2026-11-13) | Procedural sound: engine with buses and voice limit, ambience per region, adaptive music (title, calm/tension, dawn, fail), every sound effect from events with pitch variation and stereo position, volume sliders and mute, sound test page in the debug panel |
 | 08 Settings, saves, accessibility | done (awaiting owner check) | Versioned save in localStorage (backup of an unreadable save), export/import/reset, every setting working, high-contrast reefs, calmer motion, screen-reader announcements, auto-pause on focus loss, vibration, axe-clean menus |
 | 09 Polish & mobile | done (awaiting owner check) | 10 feel tweaks, performance pass (pooled ships, particles and coin pops, cached reef/whirlpool/wave shapes, one-pass water, quieter HUD), phone guards and rotation handling, installable app with offline play and code-drawn icons, loading screen before any script, full-screen switch, install hint, `docs/ASSETS.md`, second-lamp water and fog fixes, file splits |
-| 10 QA & release | not started | |
+| 10 QA & release | done (awaiting owner check and first publish) | Economy fixed to CONTENT §8, balance pass, content proofread and fixes (lightning logbook entry), crash screen that saves first, version and build date on title, sub-path-safe build for GitHub Pages, deploy workflow, DEPLOY.md, RELEASE_NOTES.md, ideas for 1.1. Owner skipped the test sweep |
 
 ## Decisions
 (Design and technical choices not covered by the docs, with a one-line reason.)
@@ -230,9 +230,63 @@ Claude Code updates this file at the end of every phase or session.
 
   `sim/world.ts` stays at 302 lines.
 
+- **2026-11-13 · Phase 10: no test sweep.** The owner decided the extra browser tests (three browsers, test-only fast-win hook) aren't worth it. The existing unit and smoke tests still run before every publish. The reminder lists of tests in Known issues stay for reference only.
+- **2026-11-13 · Economy (owner: "do what is best").** Changed to meet CONTENT.md §8:
+  - Coins per ship halved: fishing 5, cargo 8, sailboat 5, ferry 15, tugboat 5, smuggler catch 15. Star coins stay at 5.
+  - The shop's cost growth raised from 0.6 to 1, so prices are `base × (1 + level)`. Maxing Brighter lamp now costs 450 and the whole shop 1,600.
+  - **Result:** a ★★★ region pays 0.8, 1.1, 1.2, 1.5 and 1.6× the lamp path (target about 1.3, average about 1.2). You can afford everything only during region 4. The bots' upgrade kits stay affordable all the way.
+  - CONTENT.md §2 and §4 are updated to match.
+  - Coins from the endless watch scale down the same way.
+- **2026-11-13 · Lit ships keep reaching full speed at once (owner: "do what is best").** That's the GDD rule, and the fairness tests show every wreck had a savable moment. The gradual speed-up stays a one-number option if play-tests show the scraping-along-a-reef case feels unfair.
+- **2026-11-13 · Balance pass:**
+  - Every level meets the main target: the smart bot averages at least 1.8 stars (2.4–3.0) and wins every night on Keeper.
+  - **5-3** "Island hopping" was too easy for a mindless sweep:
+    - ships come faster (2.5 → 1.9 s);
+    - two more are cargo ships;
+    - the current is stronger (2.5 → 3);
+    - a seventh reef sits on the west approach.
+
+    It got harder for careful bots (smart 2.98 → 2.80 stars). The sweeper still fails only about 10%, because two lamps sweeping cover a lot of water.
+  - **4-5** "Moonless" was tried with more time between ships and with narrower fog. Neither moved the sweeper's failure rate (about 55%), while careful bots score 2.95–3.00. So it's kept as designed: a night that punishes not watching the ships.
+  - The finales 3-6 and 4-6 are meant to be the hardest of their regions and are left as they are.
+  - Everything waits on human play-tests (`docs/TODO.md`).
+- **2026-11-13 · Content check** (a full proofread of every string, the 30 briefings and the logbook):
+  - **Lightning could never be unlocked in the logbook.** 3-1 brought in the flare but not lightning. 3-1 now introduces both, and its briefing shows both.
+  - **Plurals fixed:** "ready in 1 second", "1 point", "Drive pirates away twice", and the HUD's spare-hull label for screen readers ("No ship can be lost").
+  - **Words:**
+    - US spelling ("center", "around");
+    - "Smugglers’ Cove" with a curly apostrophe;
+    - "Fog band" and "Reef" in the logbook;
+    - "Quit to chart", "Title screen", "Sold after Night 2-1.";
+    - two briefing lines (1-6, 4-4) and the storm-waves logbook line.
+  - CONTENT.md's 1-2 row now says ★★★ allows 1 wreck, as the data does.
+  - Credits already list both fonts with their licences, and the licence files are published with the game.
+- **2026-11-13 · "Something went wrong" screen:**
+  - Any error in the game, including a failed start, shows a calm card with a **Reload** button instead of a frozen screen.
+  - The save is written first. It's checked again on load, so a bad value can't stick.
+  - It shows once. Errors from other sites' scripts, such as browser extensions, are ignored (`src/app/crashScreen.ts`).
+- **2026-11-13 · Version 1.0.0.** The title shows "Version 1.0.0 · built YYYY-MM-DD"; the date is set when the game is built.
+- **2026-11-13 · GitHub Pages publishing:**
+  - The repository is `shubhampatil212/lighthouse-keeper`, so the live address is https://shubhampatil212.github.io/lighthouse-keeper/.
+  - The build uses relative paths, so the same files work at a site root or in that sub-folder. This covers the page, fonts, icons, app manifest and offline service worker. Checked by serving the build from a `/lighthouse-keeper/` folder: it loads, installs its offline copy and plays offline.
+  - No source maps are published.
+  - `.github/workflows/deploy.yml` runs on every push to `master`: install, typecheck, lint, unit tests, browser smoke tests, build, then publish. Steps are in `docs/DEPLOY.md`.
+- **2026-11-13 · Your email is hidden.** All commits use GitHub's private "noreply" address (`121785571+shubhampatil212@users.noreply.github.com`). The 10 earlier commits were rewritten to it before the first push, so their ids changed; nothing had been pushed yet.
+
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Ideas for 1.1** (not started):
+  - online leaderboards for the endless watch and the daily sea;
+  - more regions and nights;
+  - a store wrapper (Google Play or the App Store, via a web-app shell);
+  - real art and sound through the swap slots in `docs/ASSETS.md`;
+  - moving or removing a placed bell buoy;
+  - lit ships speeding up gradually, if play-tests ask for it;
+  - level tuning from human play-tests (`docs/TODO.md`);
+  - translations (the strings are ready);
+  - a "ghost" replay of your best daily sea;
+  - a calmer "Zen" mode with no wrecks for younger players.
 - **Phase 09 reminders: tests and device checks to do later** (owner: no tests or device testing this phase):
   - **On your phones:**
     - It installs to the home screen on Android (Chrome) and iPhone (Safari), launches full screen and works offline in airplane mode. This needs the built game on a real address (`npm run build`, then `npm run preview`, or a hosted copy). The service worker doesn't run in `npm run dev`.
@@ -269,7 +323,7 @@ Claude Code updates this file at the end of every phase or session.
 - **Phase 07 tests to write (owner: no tests until the end):**
   - unit: `shipInDanger` / `shipOutOfDanger` (dark for 3 s, near a rock, cleared by drifting away; never for smugglers; no events while lit); the night listener (tension from events, cleared by lit/saved/wrecked/caught/escaped and at the night's end; the first-lit bell once per ship; pan from x); music theory (`degreeSemis`, `walk` stays in range and lands on chord notes on strong beats); the volume curve
   - browser: no autoplay warning before the first tap and the context running after it; mute silences the master meter; the voice cap under a burst of sounds; the sound test buttons play without errors
-- **The economy is far more generous than CONTENT.md §8 asks (owner decision needed; tracked in `docs/TODO.md`).** With the ship coins (§2) and prices (§4) as written, a ★★★ region pays 1.9–4× the cost of maxing Brighter lamp (target about 1.3×), and a keeper can afford every upgrade (about 1,200 coins) by region 2–3. Options: halve the coins per ship, raise the shop's cost growth (0.6) to about 1.2, or both. I haven't changed CONTENT's numbers; the economy table in `docs/balance-report.md` will show the effect of whichever you pick. Phase 10 has the balance pass.
+- **The economy was far more generous than CONTENT.md §8 asks.** *Fixed in phase 10* (see Decisions).
 - **Balance outliers** (details in `docs/balance-report.md`): several region 2–5 "introduce" levels are easy for the smart bot (≈ 3.0 stars); the sweeper fails region 3+ finales and a few others more than the 20–40% target (3-6, 4-5, 4-6, 5-2), and a few less (3-4, 4-2, 5-3, 5-5); region 1's 1-3 is a step up before an easier 1-4 (its bonus, "no ship in the dark over 6 s", is fixed by CONTENT.md).
 - **Phase 06 tests to write (owner: no tests until the end):**
   - unit: every bonus objective (incl. fog-aware "no long dark", difficulty-stretched "finish within"); ability loans; `beamStart`; the current-limit and bonus checks in `validateLevel`; `stepWatch` (pace ramp, reef placement clear of ships, hazard order, end past allowance, determinism per seed); `watchScore`; `watchFor` and `dailyKey`; `recordResult` star coins and `unlocksBetween`; `recordEndless` daily best; the tutorial runner; the hint queue
@@ -308,34 +362,17 @@ Claude Code updates this file at the end of every phase or session.
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
-2. **Feel:**
-   - Play a night or two and watch for:
-     - the beam settling softly;
-     - ships leaning into turns;
-     - a lantern flaring when you first light its ship;
-     - the "?" popping in;
-     - rocks settling as they appear;
-     - the coin pop just after the save ring;
-     - the counter's bump;
-     - the softer wreck shake.
-   - On Results, the stars land one by one with a little bounce, and the buttons appear a beat later.
-   - Buttons press down and spring back.
-3. **Speed:** Settings → Show frame rate, then play `?level=5-6` (the busiest night) on Medium. It should stay near 60 on your phone. If it doesn't, try Low and tell me the numbers.
-4. **Phone behaviour:**
-   - Try to pull the page down, scroll, long-press the sea, or pinch: nothing should happen.
-   - Rotate the phone in the middle of a night: the sea fades for a moment and comes back the right size.
-   - Switch apps and come back: the night is paused, and sound returns.
-5. **Install and offline** (needs the built game, because the offline part is off in development):
-   1. Run `npm run build`, then `npm run preview`.
-   2. Open the **Network** address it prints on your phone.
-   3. On Android Chrome, the title shows an **Install** button. On iPhone Safari, it says to use Share → Add to Home Screen.
-   4. Install, then open it from the home screen: it runs full screen with the lighthouse icon.
-   5. Turn on airplane mode and open it again: it still plays.
-6. **Full screen:** Settings → Display → **Full screen** (on Android or desktop browsers).
-7. **Loading:** reload the page. The lamp and "Lighting the lamp…" show at once, then "Tap to begin".
-8. **Second lighthouse:** `?level=5-4` or `?level=5-6`. The second beam now lights and sparkles on the water too.
-9. **For an artist or sound designer:** `docs/ASSETS.md`.
-10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 5 minutes), `npm run e2e`, `npm run icons` (redraws the icons).
+2. **Title:** at the bottom it says "Version 1.0.0 · built" and today's date.
+3. **Economy:**
+   - Start a new keeper (Settings → Data → Export first if you want to keep your save, then Reset progress).
+   - Ships now pay fewer coins (fishing boat 5, cargo 8, ferry 15), and the shop's second and later levels cost more (Brighter lamp: 30, 60, 90, 120, 150).
+   - Through Harbor Bay you should be able to buy a few things, not everything.
+4. **Logbook:** after reaching 3-1, its briefing shows two new things (lightning and flares), and the logbook's Lightning entry is no longer "Not yet seen".
+5. **5-3 "Island hopping"** is busier: more ships, faster, a stronger current, one more reef.
+6. **Something went wrong:** you shouldn't see it. If you ever do, tap Reload; your progress is kept.
+7. **Publishing:** follow `docs/DEPLOY.md`. Push, watch the **Actions** tab go green, then open https://shubhampatil212.github.io/lighthouse-keeper/ on your phone and computer. Install it from there, turn on airplane mode and check it still plays.
+8. **The big one (phase checklist):** play the campaign, or a large part of it, on Keeper, and tell me anything that blocks or feels unfair.
+9. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 5 minutes), `npm run e2e`, `npm run playtest` (rewrites `docs/balance-report.md`).
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -397,3 +434,14 @@ Claude Code updates this file at the end of every phase or session.
   - file splits.
 
   No new tests and no device checks, per the owner; everything to check later is listed under Known issues. Typecheck and lint are clean, 482/482 unit tests and 5 browser tests pass. In a headless browser: no console errors on boot, title, 5-6, 3-3, 4-1 and Settings, and the production build plays offline. Waiting for the owner's phone checks.
+- **2026-11-13 · Phase 10 QA, balance & release.** Done:
+  - the economy fixed to CONTENT.md §8;
+  - the balance pass (5-3 retuned, full bot report regenerated);
+  - the content proofread with every finding fixed, including the Lightning logbook entry that could never unlock;
+  - the "Something went wrong" screen;
+  - version 1.0.0 with the build date on the title;
+  - a build that works under GitHub Pages' sub-folder, checked offline;
+  - the deploy workflow, `docs/DEPLOY.md`, `docs/RELEASE_NOTES.md` and the ideas for 1.1;
+  - commits rewritten to GitHub's private address, and the remote connected.
+
+  The test sweep was skipped by the owner. Waiting for the owner to push (the first publish) and play the campaign.

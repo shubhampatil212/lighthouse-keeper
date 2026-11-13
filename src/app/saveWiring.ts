@@ -38,6 +38,8 @@ export interface LoadedGame {
   data: SaveActions;
   /** A message for the player once the title is up (an unreadable save), or null. */
   notice: string | null;
+  /** Writes any pending change now (before the crash screen shows). */
+  flush(): void;
 }
 
 export interface AddressOverrides {
@@ -126,5 +128,8 @@ export function loadGame(params: URLSearchParams, overrides: AddressOverrides): 
     progress,
     data,
     notice: loaded.kind === 'unreadable' ? STRINGS.saveUnreadable : null,
+    flush() {
+      storage.flush();
+    },
   };
 }

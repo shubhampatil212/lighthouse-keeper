@@ -13,12 +13,12 @@ All values here go into `src/data/`. Units: world units (wu), seconds (s), radia
 ## 2. Ships
 | Type | Unlocks in | Speed (wu/s) | Size (L×W) | Coins | Behavior |
 |---|---|---|---|---|---|
-| Fishing boat | 1-1 | 18 | 13×6 | 10 | Standard |
-| Cargo ship | 1-2 | 12 | 22×9 | 15 | Turns slowly (turn rate ×0.7), needs a wider path around reefs |
-| Sailboat | 1-4 | 16 | 12×5 | 10 | The wind pushes it 1.5× more than other ships while in the dark |
-| Ferry | 2-3 | 13 | 24×9 | 30 | **Precious:** if it wrecks, the level fails. It has a gold lantern. |
-| Tugboat | 3-2 | 20 | 11×7 | 10 | While lit, it slows nearby dark ships for you (tows them) |
-| Smuggler | 4-1 | 22 | 14×6 | +25 bonus if caught | Turns **away** from the light. Keep it lit for 2 s to "catch" it: it stops and coast guard tows it away. If it escapes off-screen there's no penalty, but no bonus either. It never counts as a wreck. |
+| Fishing boat | 1-1 | 18 | 13×6 | 5 | Standard |
+| Cargo ship | 1-2 | 12 | 22×9 | 8 | Turns slowly (turn rate ×0.7), needs a wider path around reefs |
+| Sailboat | 1-4 | 16 | 12×5 | 5 | The wind pushes it 1.5× more than other ships while in the dark |
+| Ferry | 2-3 | 13 | 24×9 | 15 | **Precious:** if it wrecks, the level fails. It has a gold lantern. |
+| Tugboat | 3-2 | 20 | 11×7 | 5 | While lit, it slows nearby dark ships for you (tows them) |
+| Smuggler | 4-1 | 22 | 14×6 | +15 bonus if caught | Turns **away** from the light. Keep it lit for 2 s to "catch" it: it stops and coast guard tows it away. If it escapes off-screen there's no penalty, but no bonus either. It never counts as a wreck. |
 
 Dark behavior (all ships): speed ×0.6, heading error eases toward a random target in ±1.05 rad, re-rolled every 2–4 s, ease rate 0.8/s. Lit: turn rate 1.9 rad/s, reef avoidance radius = reef radius + 46 wu.
 
@@ -37,12 +37,12 @@ Dark behavior (all ships): speed ×0.6, heading error eases toward a random targ
 
 ### Rules and numbers added in phase 04
 CONTENT.md above didn't give these. They live in `src/data/` (`ships.ts`, `hazards.ts`, `abilities.ts`, `harbors.ts`). See PROGRESS.md for the reasons.
-- **Tugboat:** a lit tug slows dark ships within 50 wu (centre to centre) to ×0.5 of their speed.
+- **Tugboat:** a lit tug slows dark ships within 50 wu (center to center) to ×0.5 of their speed.
 - **Smuggler:** in the dark it crosses the sea toward an exit point on the far side, 0.35–0.7 rad off straight across, so it misses the island. It knows the waters: it steers round rocks even in the dark and is never wrecked by anything. Lit, it turns away from whatever lights it. 2 s of *unbroken* light catch it. It escapes 4 wu past the spawn ring. Pirates ignore it. The coast guard boat (34 wu/s out, 14 wu/s towing) is cosmetic; the catch already counts.
 - **Fog band:** a point the beam can only reach through fog is lit only within 65% of the range. Glows, buoys and flares ignore fog.
-- **Iceberg:** a ship sailing (nearly) head-on into an iceberg, within 60° of its centre, wrecks. An iceberg drifting into a ship's side shoves it aside. Icebergs bounce to stay inside the fair zone: outer edge within the reef limit (base range − 50 wu), inner edge 10 wu clear of the harbor, and 30 wu of open water from any rock or other iceberg.
+- **Iceberg:** a ship sailing (nearly) head-on into an iceberg, within 60° of its center, wrecks. An iceberg drifting into a ship's side shoves it aside. Icebergs bounce to stay inside the fair zone: outer edge within the reef limit (base range − 50 wu), inner edge 10 wu clear of the harbor, and 30 wu of open water from any rock or other iceberg.
 - **Storm waves:** lit ships lean into the push and keep their course. On a storm-wave level, rocks must sit a further 16 wu inside the reef limit.
-- **Whirlpool:** pull 8 wu/s at the centre, fading to 0 at 60 wu. Lit ships steer round the core with 40 wu of room. It must sit in the beam's fair reach and not pull at a harbor.
+- **Whirlpool:** pull 8 wu/s at the center, fading to 0 at 60 wu. Lit ships steer around the core with 40 wu of room. It must sit in the beam's fair reach and not pull at a harbor.
 - **Pirate:** 18×7 wu; patrols 150 wu out at 11 wu/s, hunts at 19, flees at 22. It hunts only ships inside the beam's range. **It must chase a ship for 2.5 s before it can board** (the player's reaction window). Lighting it drives it away for 5 s after the light last touched it. It never wrecks.
 - **Second harbor:** each ship carries a harbor index. Ships bound elsewhere steer round the island and never sail onto it. Harbors must sit within the beam's fair reach. Colors: red and blue. Colorblind mode uses orange and blue, plus a circle or triangle marker.
 - **Foghorn:** slows every ship within 140 wu of the island, at the moment it sounds, to ×0.4 of its own speed for 3 s. The current and waves still push. Cooldown: 12 s at level 1, 10 s at level 2, 8 s at level 3.
@@ -51,7 +51,7 @@ CONTENT.md above didn't give these. They live in `src/data/` (`ships.ts`, `hazar
 - **Bell buoy:** rings (`buoyRang`) when a ship sails into its light.
 
 ## 4. Upgrades (Harbor shop)
-Cost formula: `round5(base × (1 + level × 0.6))`
+Cost formula: `round5(base × (1 + level))` (each level costs one more base price; changed from × 0.6 in phase 10 so the economy meets §8)
 
 | Upgrade | Base cost | Max | Effect |
 |---|---|---|---|
@@ -79,7 +79,7 @@ Level format in `src/data/levels/<region>-<n>.ts`: id, name, seed, ships (list o
 | Level | Name | Ships | New element | Bonus objective |
 |---|---|---|---|---|
 | 1-1 | First light | 4 | Beam, reefs (guided tutorial) | — |
-| 1-2 | The cargo run | 6 | Cargo ship | Save both cargo ships |
+| 1-2 | The cargo run | 6 | Cargo ship | Save both cargo ships (★★★ allows 1 wreck) |
 | 1-3 | Two at once | 8 | Ships arrive in pairs from opposite sides | No ship lost in the dark for over 6 s |
 | 1-4 | Offshore breeze | 8 | Sailboats, a visible current | Finish in under 90 s |
 | 1-5 | Rush hour | 10 | Faster spawning | Save 3 ships within 10 s of each other |

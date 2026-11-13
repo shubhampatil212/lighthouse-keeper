@@ -3,6 +3,7 @@
  * animated drawing), the bonus objective and the abilities on hand (docs/SCREENS.md "Briefing").
  */
 import { levelDef, placeOf } from '../app/campaign';
+import type { IntroId } from '../data/uiTypes';
 import { bestStars } from '../app/progress';
 import type { Scene } from '../app/sceneManager';
 import { illustration } from '../ui/illustrations';
@@ -24,21 +25,23 @@ export function createBriefingScene(ctx: GameContext): Scene {
     const difficulty = ctx.settings.get().difficulty;
     ctx.backdrop.setRegion(level.region);
 
-    const intro = place?.level.introduces ?? null;
-    const news = intro
-      ? h(
+    const intros = [place?.level.introduces, place?.level.alsoIntroduces].filter(
+      (id): id is IntroId => id !== null && id !== undefined,
+    );
+    const news = intros.map((intro) =>
+      h(
+        'div',
+        { className: 'briefing__new' },
+        illustration(intro, { animate: true }),
+        h(
           'div',
-          { className: 'briefing__new' },
-          illustration(intro, { animate: true }),
-          h(
-            'div',
-            {},
-            h('p', { className: 'eyebrow', textContent: STRINGS.briefingNew }),
-            h('p', { className: 'briefing__new-name', textContent: STRINGS.intro[intro].name }),
-            h('p', { className: 'briefing__new-line', textContent: STRINGS.intro[intro].line }),
-          ),
-        )
-      : null;
+          {},
+          h('p', { className: 'eyebrow', textContent: STRINGS.briefingNew }),
+          h('p', { className: 'briefing__new-name', textContent: STRINGS.intro[intro].name }),
+          h('p', { className: 'briefing__new-line', textContent: STRINGS.intro[intro].line }),
+        ),
+      ),
+    );
 
     const abilities: [IconId, string][] = [];
     if (progress.upgrades.foghorn > 0) abilities.push(['horn', STRINGS.abilityFoghorn]);
@@ -74,7 +77,7 @@ export function createBriefingScene(ctx: GameContext): Scene {
           'briefing',
           h('h2', { className: 'briefing__name', textContent: level.name }),
           h('p', { className: 'briefing__quote', textContent: STRINGS.briefingLine(levelId) }),
-          news,
+          ...news,
           h(
             'dl',
             { className: 'briefing__facts' },

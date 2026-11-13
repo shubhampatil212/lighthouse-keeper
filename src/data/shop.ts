@@ -5,7 +5,7 @@ import type { ShopConfig } from './uiTypes';
  * (BEAM_UPGRADES in beam.ts, ABILITIES in abilities.ts).
  */
 export const SHOP: ShopConfig = {
-  costGrowth: 0.6,
+  costGrowth: 1,
   roundTo: 5,
   upgrades: [
     { id: 'lens', baseCost: 30, max: 5, unlocksAfter: null },

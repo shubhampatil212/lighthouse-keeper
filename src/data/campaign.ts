@@ -36,7 +36,7 @@ export const CAMPAIGN: readonly CampaignRegionDef[] = [
     building: 'chapel',
     chart: { x: 60, y: 42 },
     levels: [
-      { id: '3-1', name: 'Flash of white', introduces: 'flares' },
+      { id: '3-1', name: 'Flash of white', introduces: 'lightning', alsoIntroduces: 'flares' },
       { id: '3-2', name: 'Tug duty', introduces: 'tugboat' },
       { id: '3-3', name: 'The maelstrom', introduces: 'whirlpool' },
       { id: '3-4', name: 'Crosswaves', introduces: 'stormWaves' },
