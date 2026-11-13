@@ -219,7 +219,7 @@
 }
 
 .parchment-screen .ui-coins {
-  color: #8a5a12;
+  color: #7a4f0f;
 }
 
 .chart-holder {
@@ -903,7 +903,7 @@
   border: 1px solid var(--ui-panel-line);
 }
 
-.log-entry h3 {
+.log-entry h2 {
   margin: 0 0 2px;
   font: 400 1.2rem/1.1 var(--font-title);
 }
@@ -915,7 +915,7 @@
   font-size: 0.92rem;
 }
 
-.log-entry.is-unknown h3 {
+.log-entry.is-unknown h2 {
   color: var(--ui-text-soft);
 }
 
@@ -932,7 +932,7 @@
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
 }
 
-.diary-page h3 {
+.diary-page h2 {
   margin: 0 0 8px;
   font: italic 400 1.4rem/1.1 var(--font-title);
 }

@@ -15,15 +15,13 @@ import { createFadeTransition } from './app/fade';
 import { createGame } from './app/game';
 import { createGameLoop } from './app/gameLoop';
 import { islandBuildings, unlockAll } from './app/progress';
-import { progressPreset } from './app/progressPresets';
+import { loadGame } from './app/saveWiring';
 import { createSceneManager } from './app/sceneManager';
 import { screenJump } from './app/screenJump';
-import { createStore } from './app/store';
 import type { Viewport } from './app/viewport';
 import { watchViewport } from './app/viewportWatcher';
 import {
   AUTO_QUALITY,
-  DEFAULT_SETTINGS,
   DEMO_LEVELS,
   DEMO_UPGRADES,
   LEVEL_1_2,
@@ -69,14 +67,12 @@ async function boot(): Promise<void> {
   const seedParam = Number.parseInt(params.get('seed') ?? '', 10);
   const addressDebug = settingsFromAddress(params, DEFAULT_DEBUG_SETTINGS);
 
-  // Player settings start from the defaults, the device's reduced-motion choice and any debug address options.
-  const settings = createStore<GameSettings>({
-    ...DEFAULT_SETTINGS,
-    reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    quality: addressDebug.quality,
+  // Settings and progress come from the save; ?quality= and ?colorblind (debug) override them.
+  const saved = loadGame(params, {
+    quality: params.has('quality') ? addressDebug.quality : null,
     colorblind: addressDebug.colorblind,
   });
-  const progress = createStore(progressPreset(params.get('progress')));
+  const { settings, progress } = saved;
   let debugSettings: DebugSettings = addressDebug;
   const withGame = (d: DebugSettings, s: GameSettings): DebugSettings => ({
     ...d,
@@ -90,6 +86,8 @@ async function boot(): Promise<void> {
     reducedMotion: s.reducedMotion,
     screenShake: s.screenShake,
     tutorialPrompts: s.tutorialPrompts,
+    highContrastReefs: s.highContrastReefs,
+    haptics: s.haptics,
     buildings: islandBuildings(progress.get()),
   });
 
@@ -126,6 +124,8 @@ async function boot(): Promise<void> {
   app.canvas.setAttribute('aria-label', STRINGS.canvasLabel);
   app.canvas.setAttribute('role', 'img');
   host.appendChild(app.canvas);
+  host.setAttribute('role', 'region');
+  host.setAttribute('aria-label', STRINGS.seaLandmark);
 
   const layers = createLayers(app.stage);
   const art = createCodeArt();
@@ -147,8 +147,16 @@ async function boot(): Promise<void> {
     progress,
     version,
     boot: bootScreen,
+    data: saved.data,
   });
   const audio = wireAudio(scenes, settings, uiRoot);
+  // An unreadable save: say so gently once the title is up.
+  let notice = saved.notice;
+  scenes.onEnter((name) => {
+    if (!notice || name !== SCENE.title) return;
+    game.ctx.toast(notice);
+    notice = null;
+  });
   audio.setQuality(qualityLevel);
 
   // ?level=1-2 or a debug demo such as ?level=demo-cove (see src/data/levels/demos.ts) plays at once.

@@ -61,7 +61,7 @@ function entries(p: Progress, ids: readonly (ShipTypeId | SeaFeatureId)[]): HTML
         h(
           'div',
           {},
-          h('h3', { textContent: known ? STRINGS.intro[id].name : STRINGS.logUnknown }),
+          h('h2', { textContent: known ? STRINGS.intro[id].name : STRINGS.logUnknown }),
           h('p', { textContent: known ? STRINGS.logDetail[id] : STRINGS.logUnknownLine }),
         ),
       );
@@ -80,13 +80,13 @@ function diary(p: Progress): HTMLElement {
         ? h(
             'article',
             { className: 'diary-page' },
-            h('h3', { textContent: page.title }),
+            h('h2', { textContent: page.title }),
             ...page.text.map((para) => h('p', { textContent: para })),
           )
         : h(
             'article',
             { className: 'diary-page is-locked' },
-            h('h3', { textContent: STRINGS.diaryLockedTitle }),
+            h('h2', { textContent: STRINGS.diaryLockedTitle }),
             h('p', { textContent: STRINGS.diaryLocked(STRINGS.regionName[region.id]) }),
           );
     }),

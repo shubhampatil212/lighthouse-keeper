@@ -11,6 +11,7 @@ import type { LevelResult } from '../sim/events';
 import { button } from '../ui/kit/controls';
 import { card, coinCounter, stars } from '../ui/kit/display';
 import { h, reducedMotion } from '../ui/kit/dom';
+import { vibrate } from '../ui/haptics';
 import { STRINGS } from '../ui/strings';
 import { SCENE, type GameContext } from './context';
 import { menuScene } from './menuScene';
@@ -160,6 +161,7 @@ export function createResultsScene(ctx: GameContext): Scene {
                 revealMs: calm ? 0 : UI_FEEL.starIntervalMs,
                 onStar: (n) => {
                   emitUi({ type: 'star', n });
+                  if (ctx.settings.get().haptics) vibrate(UI_FEEL.haptics.star);
                 },
               })
             : h('p', {

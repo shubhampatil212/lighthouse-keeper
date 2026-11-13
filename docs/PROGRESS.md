@@ -12,7 +12,7 @@ Claude Code updates this file at the end of every phase or session.
 | 05 UI & screens | done (awaiting owner check) | Every screen from SCREENS.md connected: boot, title, first-launch difficulty, sea chart, level select, briefing, real HUD, pause, results with dawn and tips, harbor shop with buoy chart, logbook with diary, settings, credits, endless results. UI kit, back/Esc handling, live sea behind menus. Placeholder progress until phases 06/08 |
 | 06 Levels & campaign | done (awaiting owner check) | All 30 levels, 1-1 tutorial and new-mechanic prompts, bot play-tester and balance report, star coins and unlock notes, endless watch and daily sea, debug unlock/jump |
 | 07 Audio | done (owner accepted 2026-11-13) | Procedural sound: engine with buses and voice limit, ambience per region, adaptive music (title, calm/tension, dawn, fail), every sound effect from events with pitch variation and stereo position, volume sliders and mute, sound test page in the debug panel |
-| 08 Settings, saves, accessibility | not started | |
+| 08 Settings, saves, accessibility | done (awaiting owner check) | Versioned save in localStorage (backup of an unreadable save), export/import/reset, every setting working, high-contrast reefs, calmer motion, screen-reader announcements, auto-pause on focus loss, vibration, axe-clean menus |
 | 09 Polish & mobile | not started | |
 | 10 QA & release | not started | |
 
@@ -89,10 +89,10 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Back = Esc = the browser's back button.** Order: close the top dialog, then let the screen handle it (play opens Pause, Pause resumes, the shop cancels buoy placement), then go back a screen. The browser history keeps one spare entry to catch its back button; on the title screen, back leaves the page as usual. Esc no longer pauses through the input code (P still does), so Esc can't pause and unpause at once. The controller test now presses P.
 - **2026-11-13 · Screen stacks after a night are rebuilt** so back always makes sense: a night sits on Title → Chart → its region's level select; Results, the shop and "Quit to map" go back to the chart.
 - **2026-11-13 · The campaign list** (all 30 levels with their CONTENT.md names, what each introduces, and where regions sit on the chart) is in `src/data/campaign.ts`. Levels phase 06 hasn't written play a stand-in night, renamed and tinted for their region: region 1 plays 1-2's layout, regions 2–5 play the matching demo night (ice, storm, cove, archipelago). The stand-in's bonus objective shows on the briefing.
-- **2026-11-13 · Placeholder progress lives in memory only** (`src/app/progress.ts`, presets in `progressPresets.ts`). Results award stars, coins and ships saved, the shop spends coins, and regions unlock, but a reload starts a new keeper. `?progress=mid` (region 1 done, half of region 2, 185 coins) and `?progress=all` (everything, 2000 coins) let you test later states. Phase 06 finishes the rules; phase 08 saves them.
+- **2026-11-13 · Placeholder progress lives in memory only** (superseded in phase 08: progress is saved now; the presets remain) (`src/app/progress.ts`, presets in `progressPresets.ts`). Results award stars, coins and ships saved, the shop spends coins, and regions unlock, but a reload starts a new keeper. `?progress=mid` (region 1 done, half of region 2, 185 coins) and `?progress=all` (everything, 2000 coins) let you test later states. Phase 06 finishes the rules; phase 08 saves them.
 - **2026-11-13 · Unlock rules (placeholder until phase 06):** a level opens when the one before it in its region is cleared; a region opens when the previous region's finale is cleared; each finished region adds its island building and diary page; endless watch opens after Harbor Bay. The foghorn is sold once 1-6 is cleared (so it can be bought before 2-1, where it's introduced), flares once 2-6 is cleared.
 - **2026-11-13 · Bell buoys are placed per level** (the next night's reef chart in the shop), at most 3 per region, priced 20 + 10 for each already placed in that region. They can't be moved yet.
-- **2026-11-13 · Settings apply at once and are kept in memory until phase 08.** Working now: graphics quality, frame-rate counter, screen shake, difficulty (restarts a night in progress), beam control, left-handed buttons, tutorial prompts, reduced motion, colorblind colors, larger text (1.25×). Stored but with nothing to control yet: the four volume sliders and mute (audio is phase 07), high-contrast reefs and vibration (phase 08). Export and import show as "coming soon"; reset progress works, with a two-tap confirmation. The debug panel's difficulty, control, quality and colorblind switches change the same settings.
+- **2026-11-13 · Settings apply at once and are kept in memory until phase 08.** (Phase 08: all are saved and all work now.) Working now: graphics quality, frame-rate counter, screen shake, difficulty (restarts a night in progress), beam control, left-handed buttons, tutorial prompts, reduced motion, colorblind colors, larger text (1.25×). Stored but with nothing to control yet: the four volume sliders and mute (audio is phase 07), high-contrast reefs and vibration (phase 08). Export and import show as "coming soon"; reset progress works, with a two-tap confirmation. The debug panel's difficulty, control, quality and colorblind switches change the same settings.
 - **2026-11-13 · Contextual tutorial prompts** show once per visit, at the bottom of the screen, for 3.5 s, and never block play: a ship lost in the dark, the first smuggler, ferry, pirate, whirlpool and lightning. Phase 06 adds 1-1's scripted tutorial.
 - **2026-11-13 · Fail tips come from what happened** (`src/scenes/nightLog.ts` listens to events only): a lost ferry; pirates, the whirlpool or icebergs (when they caused at least half the wrecks); ships in the dark for 6 s or more; ships lit only shortly before they sank; otherwise a general sweep tip.
 - **2026-11-13 · HUD:** the progress bar shows ships still to come; wrecks left are hull icons; ability buttons (60 px) sit bottom right, bottom left in left-handed mode, with a cooldown ring on the foghorn, a charge count on flares, and the steered lamp's number on the switch button. Edge arrows now keep clear of the HUD's bars and the notch.
@@ -135,15 +135,34 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · The beam's whir needs the turn speed.** The play scene measures it from the beam angle it already reads for drawing and passes it on; audio never reads the simulation. High quality only, as ART_AUDIO says.
 - **2026-11-13 · Menu clicks come from one listener** on the screens' layer (any button, switch or segmented choice), not from each button. The HUD's ability buttons don't click; their abilities have their own sounds. A click right after a back or buy sound is skipped so they don't double up.
 - **2026-11-13 · Sound levels and timings live in `src/data/sound.ts`** (mix, voice limit, every effect's level and spacing, music tempo, chords, motifs, each region's ambience). The files are named `sound` rather than `audio` because the lint rule that keeps the simulation pure blocks any import path ending in `audio`. The shape of each synthesized sound (its frequencies and envelope) stays in `src/audio/sfx/`, as sound design rather than balance.
+- **2026-11-13 · Phase 08: the save holds settings and progress only.** Progress already has stars, coins, upgrades, bell buoys and records (best endless and daily scores, ships saved). The logbook's pages and silhouettes are worked out from progress, so they need nothing of their own. A night in progress isn't saved: closing the tab mid-night loses that night, not the campaign.
+- **2026-11-13 · Saving:** written 0.4 s after the last change (`UI_FEEL.saveDebounceMs`), and at once when the tab is hidden or closed. One key in localStorage (`lighthouse-keeper.save`), version 1. Every read and write sits behind try/catch; if the browser blocks storage the game still plays, and Settings says so and suggests exporting.
+- **2026-11-13 · Checking a save** (from this device or an imported file): a missing field gets its default, so older saves keep working; a field with the wrong kind of value (text where coins should be, a volume of 400) means the whole save is refused. Stars and buoys for level ids this version doesn't have are dropped. A save from a newer version of the game is refused rather than guessed at.
+- **2026-11-13 · An unreadable save** is copied to `lighthouse-keeper.save.unreadable` (so it can be rescued by hand), a new keeper begins, and the title says so gently.
+- **2026-11-13 · Migrations** live in `src/save/migrations.ts`: each step turns version n into n + 1. Version 1 is the first saved shape, so there are no steps yet.
+- **2026-11-13 · Import asks before replacing anything:** it shows the file's stars and coins, then "Load save" or "Keep mine". It replaces settings as well as progress, so export → reset → import brings back exactly what was there (checked: the stored save is byte-for-byte the same).
+- **2026-11-13 · Reset progress keeps your settings** (volumes, accessibility and so on); only the campaign starts over.
+- **2026-11-13 · `?progress=mid` / `all` never write the save**, so a test preset can't overwrite a real keeper. `?quality=` and `?colorblind` (debug) still apply on top of the save, and are saved if you then change a setting.
+- **2026-11-13 · Reduced motion follows the device** until the player changes it in Settings; from then on the player's choice sticks (`followSystemMotion` in the save). With it on: no screen shake, no big transitions, and the sea's own clock (water, fog, storm waves, ship bob, rain) runs at 35% speed (`RENDER_FEEL.reducedMotionSea`).
+- **2026-11-13 · High-contrast reefs are drawing only:** the memory outline is cream instead of amber, about twice as thick, with longer dashes, and fades half as fast. The simulation's reef memory doesn't change, so the setting can't change what happens in a night.
+- **2026-11-13 · Colorblind mode:** the only place color alone carries meaning is the harbor destinations (dots, harbor lights), which already switch to orange/sky blue with circle/triangle shapes. Other signals already have a shape: the "?" on lost ships, the pirate's dashed line and ring, the hull icons for wrecks left, the lock icon on locked levels.
+- **2026-11-13 · Screen-reader announcements** come from a polite live region during a night: "A ship is home.", "A ship was wrecked.", the night's end with its stars, and "Paused." Saves or wrecks within 1.2 s are joined ("3 ships are home.").
+- **2026-11-13 · Losing focus pauses the night** (switching app or tab, or clicking outside the window). The sandbox is a debug tool and keeps running.
+- **2026-11-13 · Vibration** follows ART_AUDIO (save 15 ms, wreck 30-40-60, star 10 ms) when the setting is on. Only Android browsers support it; elsewhere nothing happens.
+- **2026-11-13 · Accessibility fixes found by axe:** the coin count on the sea chart was slightly too faint (4.45:1, needs 4.5:1), and the chart and level buttons had spoken names that didn't contain their visible text (voice-control users say what they see). The shop's and logbook's card titles skipped a heading level, and the sea and HUD weren't labeled regions. All fixed; axe now reports nothing on any menu, at phone and desktop sizes.
+- **2026-11-13 · The axe check was run by hand,** with axe-core 4.14.0 loaded from a scratch folder rather than added to the project, because the owner asked for no new tests until the end. Adding `@axe-core/playwright` and turning that script into a test is on the deferred list.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Phase 08 tests to write (owner: no tests until the end; the phase prompt asks for them):**
+  - unit: `readSave` (defaults for missing fields, refusing wrong types and out-of-range numbers, dropping unknown level ids, refusing a newer version); `migrate` (walks each step, stops on a missing one, refuses version 0 and newer); `createSaveStorage` (debounce, flush, unreadable → backup key, storage that throws); settings defaults; `saveFileName`; the announcer's joining of saves and wrecks
+  - browser (needs `@axe-core/playwright`, pinned): axe on every menu, Pause and Pause → Settings at phone and desktop sizes with no serious issues; reload keeps progress; export → reset → import gives back the identical save; a junk file is refused; an unreadable save shows the notice and leaves the backup; `?progress=` doesn't write; losing focus pauses the night
 - **The mix was set in a headless browser by meter, not by ear.** On the title screen the master sits around −30 dB RMS, effects peak well below clipping, and the voice cap held at 24 under a burst of 150 sounds. Please listen on phone speakers and headphones; each level is one number in `src/data/sound.ts` (`busLevel`, and each effect's `level`).
 - **Phase 07 tests to write (owner: no tests until the end):**
   - unit: `shipInDanger` / `shipOutOfDanger` (dark for 3 s, near a rock, cleared by drifting away; never for smugglers; no events while lit); the night listener (tension from events, cleared by lit/saved/wrecked/caught/escaped and at the night's end; the first-lit bell once per ship; pan from x); music theory (`degreeSemis`, `walk` stays in range and lands on chord notes on strong beats); the volume curve
   - browser: no autoplay warning before the first tap and the context running after it; mute silences the master meter; the voice cap under a burst of sounds; the sound test buttons play without errors
-- **`main.ts` (315 lines) and `play.ts` (309)** grew a few lines with the audio hookup. Worth splitting in phase 09 with the others.
+- **`main.ts` (323 lines) and `play.ts` (322)** grew with the audio and save hookups. Worth splitting in phase 09 with the others.
 - **The economy is far more generous than CONTENT.md §8 asks (owner decision needed; tracked in `docs/TODO.md`).** With the ship coins (§2) and prices (§4) as written, a ★★★ region pays 1.9–4× the cost of maxing Brighter lamp (target about 1.3×), and a keeper can afford every upgrade (about 1,200 coins) by region 2–3. Options: halve the coins per ship, raise the shop's cost growth (0.6) to about 1.2, or both. I haven't changed CONTENT's numbers; the economy table in `docs/balance-report.md` will show the effect of whichever you pick. Phase 10 has the balance pass.
 - **Balance outliers** (details in `docs/balance-report.md`): several region 2–5 "introduce" levels are easy for the smart bot (≈ 3.0 stars); the sweeper fails region 3+ finales and a few others more than the 20–40% target (3-6, 4-5, 4-6, 5-2), and a few less (3-4, 4-2, 5-3, 5-5); region 1's 1-3 is a step up before an easier 1-4 (its bonus, "no ship in the dark over 6 s", is fixed by CONTENT.md).
 - **Phase 06 tests to write (owner: no tests until the end):**
@@ -159,8 +178,6 @@ Claude Code updates this file at the end of every phase or session.
   - Playwright: the main path Title → Map → Level → Play → Pause → Quit (the phase checklist's test); a keyboard-only walk; Esc and browser back on every screen; no cut-off content in an iPhone-shaped viewport with notch insets
   - regression (bug fixed 2026-11-13): over the sea, the canvas (not the HUD layer) receives the mouse, so "follow finger" works with a cursor
   - unit: progress rules (unlocks, `recordResult`, upgrade and buoy prices, buying, buoy limit), `pickTip` and the night log, the navigator's back order, `levelDef` stand-ins, `nextLevelId`, settings store updates
-- **Progress resets on reload** (memory only until phase 08), so a fresh visit always starts at "Begin your watch" and the difficulty choice. Use `?progress=mid` or `?progress=all` to skip ahead.
-- **High-contrast reefs and vibration don't do anything yet** (phase 08). The sound sliders and mute work as of phase 07. Export/import save are greyed out until phase 08.
 - **Bell buoys can't be removed or moved** once placed (no rule in the docs; easy to add if wanted).
 - **The HUD level label for debug demos shows the demo's id** (for example "demo-cove"). Campaign nights show "1-2 The cargo run".
 - **Visible focus rings appear on the first button of each screen** even when you tap rather than use the keyboard, in some browsers. It's the price of putting keyboard players straight on the first control.
@@ -190,19 +207,25 @@ Claude Code updates this file at the end of every phase or session.
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
-2. **Sound starts with your first tap** on the loading screen. You should hear the title theme (slow pad, a soft bell melody) over a quiet sea, and soft clicks on every button. Back makes a lower click; buying in the shop adds a coin.
-3. **Eyes-closed test (the phase checklist):** play any night (`?level=1-2` is quick). Listen for:
-   - **saved**: a warm rising chime and a coin clink;
-   - **wrecked**: a wood crack, a low rumble, then a far-off bell;
-   - **a ship lost in the dark or drifting near rocks**: a soft low pulse and thin high strings join the music within about 1.5 s, and fade out again once every ship is safe;
-   - a small two-note bell the first time each ship is lit, and a low thunk when the light finds a reef.
-4. **Results:** a won night plays a short rising dawn motif, and each star rings one step higher. A lost night plays a darker, falling version.
-5. **Volumes:** Settings (or Pause → Settings). The four sliders change the sound as you drag; **Mute** silences everything.
-6. **Regions:** Harbor Bay has gulls and a distant bell; Northern Ice is windier; Storm Strait has rain and bigger waves; at High quality the beam makes a faint whir when it turns fast.
-7. **Sound test page:** open the debug panel (` key, or `?debug`), scroll to **Sound test**. Every sound has a button; Music lets you hear the title, night, tension, dawn and fail; Ambience plays each region's sea (tick **rain** for rain). The meters show each bus's level; the top line shows how many effect voices are playing (never more than 24).
-8. **Please listen on both phone speakers and headphones, and play for a while** (the doc asks that nothing gets tiring after 30 minutes). If anything is too loud, too quiet or grating, tell me which sound; every level is one number in `src/data/sound.ts`.
-9. Earlier phases: **Unlock all** / **Jump to level** in the debug panel; `docs/balance-report.md` for balance numbers.
-10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 3 minutes), `npm run e2e`, `npm run playtest`.
+2. **Progress is kept (the phase checklist):** play a night or two of the campaign, change a setting or two, then close the tab in the middle of a night. Reopen the address: your stars, coins, upgrades, buoys and settings are all still there. (The night you closed in the middle of isn't; it starts again.)
+3. **Export, reset, import:** Settings → Data → **Export save** downloads a file. **Reset progress** (tap twice) starts a new keeper. **Import save**, choose the file, check the stars and coins it shows, then **Load save**: everything comes back exactly. Try importing any other file: it says it isn't a save and changes nothing.
+4. **Every setting:**
+   - Sound: the sliders and Mute change the sound at once.
+   - Graphics: the quality setting changes the look, and the frame-rate counter appears.
+   - Screen shake: no shake on wrecks when it's off.
+   - Difficulty: changing it mid-night restarts the night.
+   - Beam control: Follow finger or Drag to rotate.
+   - Left-handed: the ability buttons move left.
+   - Tutorial prompts: switch them off and 1-1's tips disappear.
+   - Reduced motion: no shake, plain fades, and the sea, fog and rain move slowly.
+   - Colorblind: harbor colors become orange and blue, with circle and triangle marks (nights with two harbors, from 5-2; `?level=5-2` jumps there).
+   - High-contrast reefs: after the beam passes, the rock outlines are bright cream, thicker, and stay about twice as long.
+   - Larger text: the menus and HUD grow 1.25×.
+   - Vibration: on an Android phone, a short buzz when a ship gets home, a stronger pattern on a wreck, and a tick for each star.
+5. **Pausing by itself:** during a night, switch to another app or tab and come back; the night is paused.
+6. **Screen reader (optional):** with VoiceOver or TalkBack on, the menus read their buttons by name. During a night it says when ships come home or are wrecked, and how the night ended.
+7. **Debug presets:** `?progress=mid` or `?progress=all` still work, and never touch your real save.
+8. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 4 minutes), `npm run e2e`, `npm run playtest`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -241,3 +264,15 @@ Claude Code updates this file at the end of every phase or session.
 
   Checked in a headless browser: 1-1's prompts, the daily sea, several late levels; no console errors. No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's play-test of region 1.
 - **2026-11-13 · Phase 07 Audio.** Built `src/audio/`: the engine (AudioContext made on the first tap, master/music/effects/ambience buses with a light compressor, suspends with the tab, 24-voice limit), synth building blocks (`synth/`: white/pink/brown noise, envelopes, filters and LFOs, FM bell, pluck, pad, horn, noise bursts, thunk, generated-impulse reverb), ambience per region (waves, wind, rain with droplets, gulls, buoy bell), the music director (`music/`: title theme, calm and tension layers in D Dorian at 70 BPM with a 1.5 s cross-fade, dawn and fail motifs), every sound effect in the table plus a few extras (`sfx/`), each with ±3% pitch and stereo position from the ship's x. Two new simulation events (`shipInDanger`, `shipOutOfDanger`) drive the tension. UI events (`src/app/uiEvents.ts`) for clicks, back, buy and stars; scenes pick their music through a new SceneManager `onEnter` hook. Sound test page in the debug panel (`src/ui/debugSound.ts`). Checked in a headless browser: no autoplay warning before the first tap, the context runs after it, every sound test button plays with no console errors, the tension layer comes and goes during a night, and a burst of 150 sounds stays at 24 voices and all are released. No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's listening test.
+- **2026-11-13 · Phase 08 Settings, saves & accessibility.** Built `src/save/` (schema v1, migration chain, a checker that refuses damaged or foreign saves, localStorage storage with debounced writes and a backup for unreadable saves, export/import). `src/app/saveWiring.ts` loads the save at boot, writes on every change and when the tab closes, makes reduced motion follow the device until changed, and provides Settings' Data actions. Settings now export, import (with a confirmation showing stars and coins) and reset; every setting works. Accessibility:
+  - High-contrast reefs and a calmer sea for reduced motion, in the renderer.
+  - Screen-reader announcements and auto-pause on losing focus (`src/scenes/playFeedback.ts`, `src/ui/announcer.ts`).
+  - Vibration (`src/ui/haptics.ts`).
+  - axe fixes: chart coin contrast, button names, heading order, labeled regions.
+
+  Checked in a headless browser, all passing with no console errors:
+  - Reload keeps everything; export → reset → import gives back the identical save; a junk file is refused; an unreadable save shows the notice and keeps a backup; `?progress=` doesn't write.
+  - axe reports 0 issues on all 12 menu screens at phone and desktop sizes, plus Pause and Pause → Settings.
+  - High-contrast outlines outlast the normal ones; losing focus pauses and announces "Paused."
+
+  No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's check.

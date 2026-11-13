@@ -23,20 +23,19 @@ import { createTitleScene } from '../scenes/title';
 import type { BootScreen } from '../ui/bootScreen';
 import { closeTopModal } from '../ui/kit/modal';
 import { createSettingsPanel } from '../ui/settingsPanel';
-import { STRINGS } from '../ui/strings';
 import { createToast } from '../ui/toast';
 import { levelDef, placeOf } from './campaign';
 import { DAILY_ID, dailyKey, isWatchId, watchNight } from './endless';
 import { createNavigator } from './navigator';
 import { watchScore } from '../sim/endless';
 import {
-  NEW_PROGRESS,
   recordEndless,
   recordResult,
   upgradesFor,
   type NightAward,
   type Progress,
 } from './progress';
+import type { SaveActions } from './saveWiring';
 import type { SceneManager, StackEntry } from './sceneManager';
 import type { Store } from './store';
 
@@ -48,6 +47,7 @@ export interface GameParts {
   progress: Store<Progress>;
   version: string;
   boot: BootScreen;
+  data: SaveActions;
 }
 
 export interface Game {
@@ -80,6 +80,7 @@ export function createGame(parts: GameParts): Game {
     settings,
     progress,
     version: parts.version,
+    data: parts.data,
     startNight(levelId) {
       const level: LevelDef = levelDef(levelId);
       const upgrades: Upgrades = upgradesFor(progress.get(), levelId);
@@ -138,10 +139,11 @@ export function createGame(parts: GameParts): Game {
     settingsPanel: () =>
       createSettingsPanel(settings, {
         inNight: true,
-        onResetProgress: () => {
-          progress.set(NEW_PROGRESS);
-          ctx.toast(STRINGS.settingsResetToast);
+        data: parts.data,
+        toast: (text) => {
+          ctx.toast(text);
         },
+        parent: parts.uiRoot,
       }),
   };
 

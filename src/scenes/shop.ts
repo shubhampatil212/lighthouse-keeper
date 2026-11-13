@@ -75,7 +75,7 @@ export function createShopScene(ctx: GameContext): Scene {
         {},
         card(
           `shop-card${forSale ? '' : ' is-locked'}`,
-          h('h3', { className: 'shop-card__name', textContent: STRINGS.upgradeName[def.id] }),
+          h('h2', { className: 'shop-card__name', textContent: STRINGS.upgradeName[def.id] }),
           pips(lvl, def.max),
           h('p', {
             className: 'shop-card__effect',

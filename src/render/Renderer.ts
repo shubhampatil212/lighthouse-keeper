@@ -59,6 +59,7 @@ export interface NightRenderer {
   /** Debug: outline hidden rocks and dark ships in red (drawing only). */
   setRevealAll(on: boolean): void;
   setReducedMotion(on: boolean): void;
+  setHighContrastReefs(on: boolean): void;
   /** Keeps the edge arrows clear of the HUD's top and bottom bars (CSS px). */
   setHudInsets(top: number, bottom: number): void;
   destroy(): void;
@@ -112,6 +113,9 @@ export function createNightRenderer(
   let previousBeam = 0;
   let vp: Viewport | null = null;
   let time = 0;
+  /** The sea's own clock: slower with reduced motion, so fog, waves and swell move calmly. */
+  let seaTime = 0;
+  let seaPace = 1;
   let parade = false;
   let revealAll = false;
   let night: World | null = null;
@@ -166,6 +170,8 @@ export function createNightRenderer(
       if (!vp) return;
       const dt = frameSeconds;
       time += dt;
+      const seaDt = dt * seaPace;
+      seaTime += seaDt;
       const { state, setup } = world;
 
       effects.update(dt);
@@ -186,7 +192,7 @@ export function createNightRenderer(
       const fogFactor = HAZARDS.fog.rangeFactor;
       const reach = beamReachThroughFog(0, 0, angle, setup.beam.range, state.fogBands, fogFactor);
       water.update(
-        time,
+        seaTime,
         {
           angle,
           halfAngle: setup.beam.halfAngle,
@@ -199,7 +205,7 @@ export function createNightRenderer(
       reefs.draw(world, dt, time);
 
       const poses = vesselPoses(world, previous, alpha);
-      const pools = ships.draw(parade ? [...poses, ...parading] : poses, dt, time);
+      const pools = ships.draw(parade ? [...poses, ...parading] : poses, dt, seaTime);
       harbors.draw(time);
       marks.draw(world, poses, (id) => ships.lanternAt(id), time, 1 / vp.scale);
       island.draw(time);
@@ -228,10 +234,10 @@ export function createNightRenderer(
           )
         : setup.beam.range;
       beamFx.drawSecond(lamp2, { ...setup.beam, range: reach2 }, time);
-      hazards.draw(world, dt, time);
+      hazards.draw(world, seaDt, seaTime);
       secondLamp.draw(lamp2, ABILITIES.secondLamp.isletRadius, state.activeLamp, time);
       sky.update(dt, time);
-      weather.update(dt, time, angle, setup.beam);
+      weather.update(seaDt, seaTime, angle, setup.beam);
 
       const due: (Point & { inSeconds: number })[] = [];
       if (state.status === 'playing') {
@@ -300,6 +306,10 @@ export function createNightRenderer(
     setReducedMotion(on) {
       effects.setReducedMotion(on);
       sky.setReducedMotion(on);
+      seaPace = on ? RENDER_FEEL.reducedMotionSea : 1;
+    },
+    setHighContrastReefs(on) {
+      reefs.setHighContrast(on);
     },
     setHudInsets(top, bottom) {
       arrows.setHudInsets(top, bottom);

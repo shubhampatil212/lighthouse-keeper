@@ -1,6 +1,7 @@
 /** What every screen can reach: navigation, the menu backdrop, settings and progress. */
 import type { Navigator } from '../app/navigator';
 import type { Progress } from '../app/progress';
+import type { SaveActions } from '../app/saveWiring';
 import type { Store } from '../app/store';
 import type { GameSettings } from '../data/uiTypes';
 import type { Backdrop } from './backdrop';
@@ -13,6 +14,8 @@ export interface GameContext {
   settings: Store<GameSettings>;
   progress: Store<Progress>;
   version: string;
+  /** Export, import and reset of the save (Settings → Data). */
+  data: SaveActions;
   /** Start a night of a campaign level (or a debug level id). */
   startNight(levelId: string): void;
   /** Start an endless watch: a free one, or today's daily sea. */

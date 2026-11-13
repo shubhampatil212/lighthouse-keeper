@@ -124,7 +124,13 @@ export function createHud(onPause: () => void, onAction: (action: ActionIntent) 
     hidden: true,
     attrs: { 'aria-live': 'polite' },
   });
-  const element = h('div', { className: 'hud' }, top, promptText, abilities);
+  const element = h(
+    'div',
+    { className: 'hud', attrs: { role: 'region', 'aria-label': STRINGS.hudLandmark } },
+    top,
+    promptText,
+    abilities,
+  );
 
   const setAbility = (
     b: AbilityButton,

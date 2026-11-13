@@ -23,7 +23,7 @@ export interface DebugSettings {
   allBuildings: boolean;
   /** All six ship types side by side, lit. */
   parade: boolean;
-  /** Colorblind harbor colors and shapes (the real setting arrives in phase 08). */
+  /** Colorblind harbor colors and shapes (the same switch as the Accessibility setting). */
   colorblind: boolean;
 }
 

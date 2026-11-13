@@ -16,6 +16,8 @@ const SHIP_NAMES: Record<ShipTypeId, { one: string; many: string }> = {
 
 export const COMMON = {
   canvasLabel: 'The sea at night, seen from the lighthouse',
+  seaLandmark: 'The sea',
+  hudLandmark: 'Night status',
   bootError: 'The lamp would not light. Please reload the page.',
   gameTitleTop: 'Lighthouse',
   gameTitleBottom: 'Keeper',

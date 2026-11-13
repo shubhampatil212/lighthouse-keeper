@@ -22,6 +22,8 @@ export interface ReefView {
   /** Builds the rocks and buoys of a new night. */
   setNight(world: World): void;
   draw(world: World, dt: number, time: number): void;
+  /** High-contrast reefs: a stronger memory outline that lasts longer. */
+  setHighContrast(on: boolean): void;
   destroy(): void;
 }
 
@@ -29,6 +31,8 @@ interface RockSprite {
   body: Container;
   shape: RockShape;
   visible: number;
+  /** How strongly the memory outline shows, 0–1 (follows the rock's memory, or outlasts it). */
+  outline: number;
 }
 
 interface BuoySprite {
@@ -68,6 +72,7 @@ export function createReefView(
   let reefShallows: Sprite[] = [];
   let buoys: BuoySprite[] = [];
   let levelSeed = 0;
+  let highContrast = false;
 
   const clear = (): void => {
     for (const box of [shallows, rocksBox, buoysBox, buoyLights]) {
@@ -90,7 +95,7 @@ export function createReefView(
     body.alpha = 0;
     body.visible = false;
     rocksBox.addChild(body);
-    return { body, shape, visible: 0 };
+    return { body, shape, visible: 0, outline: 0 };
   };
 
   return {
@@ -165,18 +170,27 @@ export function createReefView(
               alpha: (ice ? 0.75 : 0.5) * sprite.visible,
             });
         }
-        if (!rock.lit && rock.memory > 0.02) {
+        const high = feel.memoryHigh;
+        sprite.outline = highContrast
+          ? Math.max(
+              rock.memory,
+              sprite.outline - dt / Math.max(0.1, world.setup.difficulty.reefMemory * high.lasts),
+            )
+          : rock.memory;
+        if (!rock.lit && sprite.outline > 0.02) {
           const points: Point[] = sprite.shape.points.map((p) => ({
             x: p.x + rock.x,
             y: p.y + rock.y,
           }));
-          for (const [x0, y0, x1, y1] of dashOutline(points, feel.memoryDash, feel.memoryGap)) {
+          const dash = highContrast ? high.dash : feel.memoryDash;
+          const gap = highContrast ? high.gap : feel.memoryGap;
+          for (const [x0, y0, x1, y1] of dashOutline(points, dash, gap)) {
             memory.moveTo(x0, y0).lineTo(x1, y1);
           }
           memory.stroke({
-            color: ice ? ICE_EDGE : PALETTE.lamp,
-            width: 0.9,
-            alpha: rock.memory * feel.memoryAlpha,
+            color: highContrast ? high.color : ice ? ICE_EDGE : PALETTE.lamp,
+            width: highContrast ? high.width : 0.9,
+            alpha: sprite.outline * (highContrast ? high.alpha : feel.memoryAlpha),
           });
         }
       }
@@ -194,6 +208,9 @@ export function createReefView(
         b.light.position.set(b.x, b.y + bob - b.lightHeight);
         b.light.alpha = Math.sin(time * 3 + b.phase) > 0 ? 0.95 : 0.25;
       }
+    },
+    setHighContrast(on) {
+      highContrast = on;
     },
     destroy() {
       clear();

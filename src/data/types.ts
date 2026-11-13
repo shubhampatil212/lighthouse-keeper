@@ -640,6 +640,20 @@ export interface RenderFeelConfig {
   memoryDash: number;
   memoryGap: number;
   memoryAlpha: number;
+  /**
+   * High-contrast reefs (accessibility): a brighter, thicker outline in this color, with longer
+   * dashes, that fades `memoryHighLasts` times more slowly than the reef's memory.
+   */
+  memoryHigh: {
+    color: number;
+    alpha: number;
+    width: number;
+    dash: number;
+    gap: number;
+    lasts: number;
+  };
+  /** Reduced motion: fog, waves and the sea move at this fraction of their speed. */
+  reducedMotionSea: number;
   /** Foam ring around rocks: how far it reaches past the rock and how much it pulses (world units). */
   foamReach: number;
   foamPulse: number;

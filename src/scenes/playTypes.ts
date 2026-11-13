@@ -28,6 +28,9 @@ export interface PlayPrefs {
   reducedMotion: boolean;
   screenShake: boolean;
   tutorialPrompts: boolean;
+  highContrastReefs: boolean;
+  /** Vibrate on saves and wrecks (where the device can). */
+  haptics: boolean;
   buildings: readonly IslandBuildingId[];
 }
 

@@ -1,5 +1,4 @@
 /** Settings screen (from the title). From Pause, the same panel opens over the frozen night. */
-import { NEW_PROGRESS } from '../app/progress';
 import type { Scene } from '../app/sceneManager';
 import { screenHeader } from '../ui/header';
 import { h } from '../ui/kit/dom';
@@ -11,10 +10,11 @@ import { menuScene } from './menuScene';
 export function createSettingsScene(ctx: GameContext): Scene {
   return menuScene(ctx, () => {
     const panel = createSettingsPanel(ctx.settings, {
-      onResetProgress: () => {
-        ctx.progress.set(NEW_PROGRESS);
-        ctx.toast(STRINGS.settingsResetToast);
+      data: ctx.data,
+      toast: (text) => {
+        ctx.toast(text);
       },
+      parent: ctx.uiRoot,
     });
     const root = h(
       'main',

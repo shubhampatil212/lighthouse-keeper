@@ -28,6 +28,7 @@ import { createNightLog, type NightLog } from './nightLog';
 import type { PlayScene, PlaySceneOptions } from './playTypes';
 import { regionFor, weatherFor } from './playLook';
 import { createPlayHints } from './playHints';
+import { createPlayFeedback } from './playFeedback';
 import { createPlaySound } from './playSound';
 import { createTutorial, type Tutorial } from './tutorial';
 
@@ -68,6 +69,8 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   });
   const hints = createPlayHints(() => prefs.tutorialPrompts);
   const sound = createPlaySound(options.sound);
+  const feedback = createPlayFeedback(() => prefs.haptics);
+  let detachFeedback: (() => void) | null = null;
 
   let settings = options.settings;
   let quality = options.quality;
@@ -105,6 +108,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     view.setParade(settings.parade);
     view.setRevealAll(settings.revealAll);
     view.setColorblind(settings.colorblind);
+    view.setHighContrastReefs(prefs.highContrastReefs);
     view.setReducedMotion(prefs.reducedMotion || !prefs.screenShake);
     hud.setLeftHanded(prefs.leftHanded);
   };
@@ -119,6 +123,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     paused = on;
     sound.paused(on);
     if (!hooks) return;
+    if (on) feedback.paused();
     if (on) pause.show();
     else pause.hide();
   }
@@ -136,6 +141,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     endIn = null;
     view?.setNight(world);
     sound.start(level, settings);
+    feedback.reset();
   }
 
   const load = (nextLevel: LevelDef, nextUpgrades: Upgrades): void => {
@@ -208,6 +214,10 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       restart(!firstNight || options.seed === null);
       firstNight = false;
       options.uiRoot.append(hud.element);
+      // Losing focus (another app, another tab) pauses the night; the sandbox keeps running.
+      detachFeedback = feedback.attach(options.uiRoot, () => {
+        if (hooks && !paused) setPaused(true);
+      });
       requestAnimationFrame(fitArrows);
       if (safeRing) layers.effects.addChild(safeRing);
       input = createInputController(options.canvas, window, aimCenter, CONTROLS);
@@ -216,6 +226,8 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     exit() {
       pause.hide();
       hud.element.remove();
+      detachFeedback?.();
+      detachFeedback = null;
       view?.destroy();
       view = null;
       safeRing?.removeFromParent();
@@ -259,6 +271,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
           hints.onEvent(event);
           tutorial?.onEvent(event);
           sound.event(event);
+          feedback.event(event);
           if (event.type === 'levelEnded') endIn = PLAY.endCardDelay;
         }
       }

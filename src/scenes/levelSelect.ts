@@ -51,15 +51,12 @@ export function createLevelSelectScene(ctx: GameContext): Scene {
           {
             type: 'button',
             className: `route-buoy${open ? '' : ' is-locked'}${level.id === current ? ' is-next' : ''}`,
-            attrs: {
-              'aria-label': open
-                ? STRINGS.levelLabel(level.id, level.name, got)
-                : STRINGS.levelLockedLabel(level.id, level.name),
-            },
           },
+          // Screen readers hear "2-1, Frost line, 3 stars out of 3": the level code, then what's shown.
+          h('span', { className: 'sr-only', textContent: STRINGS.levelCodeLabel(level.id) }),
           h(
             'span',
-            { className: 'route-buoy__mark' },
+            { className: 'route-buoy__mark', attrs: { 'aria-hidden': 'true' } },
             open ? h('span', { textContent: String(i + 1) }) : svg(ICONS.lock),
           ),
           h('span', { className: 'route-buoy__name', textContent: level.name }),

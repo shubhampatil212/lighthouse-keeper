@@ -45,12 +45,9 @@ export const SCREENS = {
 
   // Map and level select
   mapTitle: 'Sea chart',
-  mapRegionLabel: (name: string, got: number, max: number) => `${name}, ${got} of ${max} stars`,
-  mapRegionLocked: (name: string) => `${name}, locked`,
+  mapRegionStars: (got: number, max: number) => `, ${got} of ${max} stars`,
   mapLockedHint: (before: string) => `Finish ${before} to sail here.`,
-  levelLabel: (id: string, name: string, stars: number) =>
-    `${id}, ${name}, ${plural(stars, 'star', 'stars')}`,
-  levelLockedLabel: (id: string, name: string) => `${id}, ${name}, locked`,
+  levelCodeLabel: (id: string) => `${id}, `,
   levelLockedHint: 'Finish the night before this one first.',
 
   // Briefing
@@ -174,7 +171,6 @@ export const SCREENS = {
   settingsEffects: 'Effects',
   settingsAmbience: 'Ambience',
   settingsMute: 'Mute everything',
-  settingsSoundSoon: 'The sea’s sounds arrive in a coming update.',
   settingsDisplay: 'Display',
   settingsQuality: 'Graphics',
   qualityLow: 'Low',
@@ -200,11 +196,31 @@ export const SCREENS = {
   settingsData: 'Data',
   settingsExport: 'Export save',
   settingsImport: 'Import save',
-  settingsSaveSoon: 'Saving to this device arrives in a coming update.',
+  settingsSaveNote: 'Progress and settings are saved on this device as you play.',
+  settingsSaveOff: 'This browser won’t let the game save. Export your save to keep it.',
+  settingsExportDone: 'Save downloaded.',
+  settingsImportInvalid: 'That file isn’t a Lighthouse Keeper save.',
+  settingsImportTitle: 'Load this save?',
+  settingsImportSummary: (stars: number, coins: number): string =>
+    `It has ${stars} ${stars === 1 ? 'star' : 'stars'} and ${coins} ${coins === 1 ? 'coin' : 'coins'}. It replaces your progress and settings on this device.`,
+  settingsImportConfirm: 'Load save',
+  settingsImportCancel: 'Keep mine',
+  settingsImportDone: 'Save loaded. Welcome back, keeper.',
+  saveUnreadable:
+    'Your saved progress couldn’t be read, so a new watch begins. A copy was kept on this device.',
   settingsReset: 'Reset progress',
   settingsResetConfirm: 'Tap again to erase everything',
   settingsResetDone: 'Progress erased',
   settingsResetToast: 'A new keeper takes the watch.',
+
+  // Screen reader announcements during a night
+  announceSaved: (n: number): string => (n === 1 ? 'A ship is home.' : `${n} ships are home.`),
+  announceWrecked: (n: number): string =>
+    n === 1 ? 'A ship was wrecked.' : `${n} ships were wrecked.`,
+  announceWon: (stars: number): string =>
+    `Dawn. Night complete with ${stars} ${stars === 1 ? 'star' : 'stars'}.`,
+  announceLost: 'The night is lost.',
+  announcePaused: 'Paused.',
 
   // Credits
   creditsTitle: 'Credits',

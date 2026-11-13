@@ -32,6 +32,8 @@ export const RENDER_FEEL: RenderFeelConfig = {
   memoryDash: 3,
   memoryGap: 3,
   memoryAlpha: 0.55,
+  memoryHigh: { color: 0xfff1c9, alpha: 1, width: 1.8, dash: 5, gap: 2, lasts: 2 },
+  reducedMotionSea: 0.35,
   foamReach: 4,
   foamPulse: 1.2,
   fogSpeedNear: 9,

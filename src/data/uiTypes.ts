@@ -97,6 +97,12 @@ export interface UiFeelConfig {
   starIntervalMs: number;
   /** How long a short notice ("toast") stays up. */
   toastMs: number;
+  /** Saves are written this long after the last change (settings sliders change many times a second). */
+  saveDebounceMs: number;
+  /** Screen-reader announcements made this close together are joined into one. */
+  announceGapMs: number;
+  /** Vibration patterns in milliseconds (docs/ART_AUDIO.md "Haptics"). */
+  haptics: { save: number; wreck: readonly number[]; star: number };
   /** Fail tips: a wreck counts as "lost in the dark" if the ship had been dark this long. */
   darkTipSeconds: number;
   /** Fail tips: a cause is "what went wrong" when at least this share of the wrecks had it. */

@@ -8,6 +8,9 @@ export const UI_FEEL: UiFeelConfig = {
   starDelayMs: 900,
   starIntervalMs: 450,
   toastMs: 2600,
+  saveDebounceMs: 400,
+  announceGapMs: 1200,
+  haptics: { save: 15, wreck: [30, 40, 60], star: 10 },
   // SCREENS.md's example tip: "most wrecks happened while ships were in the dark for over 6 s".
   darkTipSeconds: 6,
   tipShare: 0.5,

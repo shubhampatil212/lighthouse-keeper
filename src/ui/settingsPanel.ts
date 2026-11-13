@@ -3,16 +3,23 @@
  * Changes go straight into the settings store, so they apply at once. Used by the Settings screen
  * and by Settings opened from Pause.
  */
+import { totalStars } from '../app/progress';
+import type { SaveActions } from '../app/saveWiring';
 import type { Store } from '../app/store';
+import { pickFile } from '../save';
 import type { DifficultyId, QualityChoice } from '../data/types';
 import type { GameSettings } from '../data/uiTypes';
 import { button, segmented, slider, toggle } from './kit/controls';
 import { h, type Child } from './kit/dom';
+import { openModal } from './kit/modal';
 import { STRINGS } from './strings';
 
 export interface SettingsPanelOptions {
-  /** Erases progress (after the two-step confirmation). */
-  onResetProgress(): void;
+  /** Export, import and reset. */
+  data: SaveActions;
+  toast(text: string): void;
+  /** Where dialogs (the import check) open. */
+  parent: HTMLElement;
   /** Mid-night, changing difficulty restarts the night: say so. */
   inNight?: boolean;
 }
@@ -38,7 +45,6 @@ export function createSettingsPanel(
     slider(STRINGS.settingsEffects, s.effects, set('effects')),
     slider(STRINGS.settingsAmbience, s.ambience, set('ambience')),
     toggle(STRINGS.settingsMute, s.muted, set('muted')),
-    h('p', { className: 'settings-note', textContent: STRINGS.settingsSoundSoon }),
   );
 
   const display = section(
@@ -105,7 +111,8 @@ export function createSettingsPanel(
         armed = null;
         reset.querySelector('span')?.replaceChildren(STRINGS.settingsResetDone);
         reset.disabled = true;
-        options.onResetProgress();
+        options.data.resetProgress();
+        options.toast(STRINGS.settingsResetToast);
         return;
       }
       reset.querySelector('span')?.replaceChildren(STRINGS.settingsResetConfirm);
@@ -120,11 +127,60 @@ export function createSettingsPanel(
   );
   const data = section(
     STRINGS.settingsData,
-    button(STRINGS.settingsExport, () => undefined, { disabled: true, className: 'settings-wide' }),
-    button(STRINGS.settingsImport, () => undefined, { disabled: true, className: 'settings-wide' }),
-    h('p', { className: 'settings-note', textContent: STRINGS.settingsSaveSoon }),
+    button(
+      STRINGS.settingsExport,
+      () => {
+        options.data.exportSave();
+        options.toast(STRINGS.settingsExportDone);
+      },
+      { className: 'settings-wide' },
+    ),
+    button(
+      STRINGS.settingsImport,
+      () => {
+        pickFile((file) => {
+          void importFile(file, options);
+        });
+      },
+      { className: 'settings-wide' },
+    ),
+    h('p', {
+      className: 'settings-note',
+      textContent: options.data.canSave ? STRINGS.settingsSaveNote : STRINGS.settingsSaveOff,
+    }),
     reset,
   );
 
   return h('div', { className: 'settings-panel' }, sound, display, gameplay, access, data);
+}
+
+/** Checks the chosen file, then asks before it replaces anything. */
+async function importFile(file: File, options: SettingsPanelOptions): Promise<void> {
+  const save = await options.data.checkImport(file);
+  if (!save) {
+    options.toast(STRINGS.settingsImportInvalid);
+    return;
+  }
+  const summary = STRINGS.settingsImportSummary(totalStars(save.progress), save.progress.coins);
+  const modal = openModal(
+    options.parent,
+    { title: STRINGS.settingsImportTitle, closable: true },
+    h('p', { textContent: summary }),
+    h(
+      'div',
+      { className: 'menu-stack' },
+      button(
+        STRINGS.settingsImportConfirm,
+        () => {
+          modal.close();
+          options.data.applyImport(save);
+          options.toast(STRINGS.settingsImportDone);
+        },
+        { variant: 'primary' },
+      ),
+      button(STRINGS.settingsImportCancel, () => {
+        modal.close();
+      }),
+    ),
+  );
 }

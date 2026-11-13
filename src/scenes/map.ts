@@ -39,20 +39,19 @@ export function createMapScene(ctx: GameContext): Scene {
           {
             type: 'button',
             className: 'chart-region__button',
-            attrs: {
-              'aria-label': open
-                ? STRINGS.mapRegionLabel(name, got, max)
-                : STRINGS.mapRegionLocked(name),
-            },
           },
           h('span', { className: 'chart-region__mark' }, svg(open ? ICONS.anchor : ICONS.lock)),
           h('span', { className: 'chart-region__name', textContent: name }),
+          // The button's name is the text you see, plus the stars spelled out for screen readers.
           h(
             'span',
-            { className: 'chart-region__stars' },
+            { className: 'chart-region__stars', attrs: open ? { 'aria-hidden': 'true' } : {} },
             open ? svg(ICONS.star) : null,
             open ? STRINGS.starCount(got, max) : STRINGS.locked,
           ),
+          open
+            ? h('span', { className: 'sr-only', textContent: STRINGS.mapRegionStars(got, max) })
+            : null,
         );
         if (i === here) b.dataset.autofocus = '';
         b.addEventListener('click', () => {
