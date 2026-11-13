@@ -7,7 +7,7 @@ Claude Code updates this file at the end of every phase or session.
 |---|---|---|
 | 01 Foundation | done (owner accepted 2026-11-13) | Toolchain, folders, viewport/loop/scenes, RNG, fonts, placeholder sea + island + sweeping beam |
 | 02 Core simulation | done (awaiting owner check) | Deterministic sim, level 1-2 playable with debug graphics, fairness test, input (follow finger / drag to rotate / keyboard), debug panel |
-| 03 Rendering & visuals | not started | |
+| 03 Rendering & visuals | done (owner accepted 2026-11-13) | Real 2.5D look: light-map darkness, water shader, beam shaft and bloom, low-poly reefs, six ship looks, island and buildings, fog/rain/snow, effects, region tints, Low/Medium/High/Auto |
 | 04 Ships & hazards | not started | |
 | 05 UI & screens | not started | |
 | 06 Levels & campaign | not started | |
@@ -46,13 +46,30 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Coins are rounded per ship** after the difficulty bonus (Storm: a fishing boat pays 13, a cargo ship 19).
 - **2026-11-13 · Gamepad aiming is deferred to phase 08.** The phase 02 prompt lists pointer, touch and keyboard only.
 - **2026-11-13 · A second, DOM-free typecheck** (`tsconfig.sim.json`, run by `npm run typecheck`) covers `src/sim` and `src/data`. Together with the ESLint rules (no Pixi, no imports from app/audio/input/render/save/scenes/ui, no timers or browser globals), it enforces architecture rule 1.
+- **2026-11-13 · Hulls and rocks follow the simulation, not the darkness.** A ship's hull, sails and wake are drawn only while the simulation says it's lit (0.2 s fade), and rocks likewise. The darkness is mood on top. This keeps "a ship in the dark shows only a lantern" true even though lanterns light a small pool of water. Reef shallows also show only while their reef is visible, so they never give a hidden reef away.
+- **2026-11-13 · Darkness is a multiplied light map** (night color, blended to the light color wherever light falls), drawn at half resolution. Pixi multiplies it natively, so it needs no custom shader.
+- **2026-11-13 · The water shader works out the light from the beam's numbers** rather than sampling the light map (the prompt allows either). It's simpler and doesn't depend on drawing order.
+- **2026-11-13 · Custom shaders are written for both WebGL and WebGPU.** Pixi still picks (WebGL today). `?renderer=webgpu` asks for WebGPU so the WebGPU version can be checked; it renders the same in Chrome.
+- **2026-11-13 · The four phase 04 ship types (sailboat, ferry, tugboat, smuggler) have their CONTENT.md stats and their own look now, but no special behavior yet.** No level uses them. The smuggler pays 0 coins for reaching harbor; its 25-coin catch bonus arrives with phase 04.
+- **2026-11-13 · Ship looks:** fishing boat teal with a small sail; cargo ship rust with containers and a funnel; sailboat white with tall sails; ferry cream and navy with two funnels and a bigger gold lantern; tugboat stubby black and red; smuggler low and dark with a patched sail and a dim reddish lantern.
+- **2026-11-13 · The island always has a small jetty.** The "dock" building from the campaign list is a bigger wharf with crates. Buildings, in unlock order: cottage, dock, chapel, market, festival lights. Until the campaign exists (phase 06) the island shows none; the debug panel's **All buildings** shows them all.
+- **2026-11-13 · Each region has a default weather** (Harbor Bay light fog, Northern Ice fog and snow, Storm Strait fog and rain, the others light fog). A level can override it; 1-2 uses Harbor Bay's.
+- **2026-11-13 · The far fog bank sits under the darkness** so it glows where the beam passes; the near one is a faint haze above everything. Low quality keeps only the far one.
+- **2026-11-13 · Auto quality settles once it's measured.** It starts at Medium, averages 3 s of frames, drops a level if that's above 20 ms and measures again, and stops once a window is fast enough (or Low is reached). It never steps back up, so the picture doesn't change mid-night for no visible reason.
+- **2026-11-13 · Weather uses at most 60% of the particle cap,** leaving the rest for splinters and foam so effects always show.
+- **2026-11-13 · Reduced motion follows the device setting** (turns off camera shake) until the settings screen exists (phase 08).
+- **2026-11-13 · Edge arrows** point at ships sailing beyond the screen edge, and pulse for ships due in the next 2 s.
+- **2026-11-13 · The current arrow stays** (subtle, upper left) until the phase 05 HUD.
+- **2026-11-13 · Look numbers** (bob, roll, fades, glows, fog speeds, effect sizes) live in `src/data/renderFeel.ts`, region colors in `src/data/regions.ts`. The file isn't called `render.ts` because the lint rule that keeps the simulation pure blocks any import path ending in `render`.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Ships are small on portrait phones.** The whole 230-unit circle must fit the phone's width, so on a 390 px-wide phone one world unit is about 0.8 px and a fishing boat is about 11 px long. All six types are clearly different on desktop and in the zoomed parade, but on a phone they're small. Options if it bothers you in play: draw ships larger than their collision size, or revisit the phase 01 scale rule. Worth checking on your phone with the **Ship parade**.
+- **Low quality looks a little flat in the beam** (no water shader, so lit water is lighter but not warm). It's the fallback for weak devices.
+- The water shader's WebGPU version is checked in desktop Chrome only (with a software GPU); WebGL is what phones use today.
 - `npm audit` reports a moderate advisory in `minimatch`, which ESLint and typescript-eslint use. It only affects the developer's lint tooling and never reaches players. Clears when those packages update.
 - **Lighting a ship that is scraping along a reef can make it crash sooner.** A dark ship drifts at 60% speed, so it can creep along a reef's edge for several seconds. Lighting it in the last second or two speeds it up to full speed before it can turn away. Each such ship was savable earlier (the fairness test checks this), but it may feel unfair in play. Worth watching in play-tests; a possible fix is to let lit ships speed up gradually instead of instantly.
-- **Graphics are debug shapes** (circles, lines, the cone), with no darkness layer yet. Phase 03 replaces them.
 - **The HUD and end card are temporary** (`src/ui/playtest.ts`), and there's no pause screen: Esc or P pauses on a keyboard, but a phone can't pause yet. Phase 05 brings the real screens.
 - **Replays across different browsers may differ slightly**, because `Math.sin`/`Math.cos` can round differently from one engine to another. Within one browser a seed always replays exactly. This only matters if we ever share replays between devices.
 - Level 1-2 balance is rough (phase 10 does the balance pass). In 100 simulated nights on Keeper, a player who never moves the beam gets mostly ★ or ★★ and fails 6% of the time; a player who always lights the oldest ship gets mostly ★★ or ★★★.
@@ -61,23 +78,28 @@ Claude Code updates this file at the end of every phase or session.
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm install` (first time only), then `npm run dev`.
-2. Open the **Local** address it prints (usually http://localhost:5173) in a desktop browser. You're playing level 1-2, "The cargo run": six ships (two slow red cargo ships) arrive over about 40 seconds.
-   - Move the mouse: the beam follows it, but turns no faster than its limit and eases in at the end.
-   - Ships in the dark show only a small amber lantern. In the beam, you see the hull, the ship heads for the island, and the rocks near it appear.
-   - After the light leaves a reef, a faint outline stays for about 3 seconds (Keeper).
-   - A ship left in the dark for 4 seconds gets a pulsing ring above it ("lost").
-   - The arrow in the upper left shows which way the current pushes dark ships.
-   - When every ship is home or wrecked, an end card shows the stars, the bonus ("Save every cargo ship") and **Play again**.
-3. Try the arrow keys (or A and D) instead of the mouse. Esc or P pauses.
-4. Press the **`** key (top left of the keyboard) to open the debug panel. It shows the frame rate, tick count, ships and seed, with switches for **Reveal all** (draws hidden ships and rocks in red), **Follow finger / Drag to rotate**, the difficulty, and restarting.
-5. On your phone (on the same Wi-Fi), open the **Network** address it prints with `?debug` on the end (for example http://192.168.1.20:5173/?debug). Use **Hide panel** to get it out of the way and the small **Debug** tab to bring it back. Try both control styles one-handed in portrait.
-6. To fail on purpose, leave the beam pointing somewhere empty: on Keeper the 4th wreck ends the night.
-7. To replay the exact same night, note the seed in the debug panel and open the address with `?seed=` plus that number.
-8. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run e2e`.
+2. Open the **Local** address it prints (usually http://localhost:5173). You're playing level 1-2, "The cargo run", now with the real look:
+   - The night is dark teal-black; the beam is a warm cone with soft edges, a glow shaft from the lamp glass, sparkles on the lit water and specks drifting in it.
+   - Ships in the dark show only an amber lantern. Light one and its hull, sail and wake fade in. After 4 s in the dark a "?" pulses above its lantern.
+   - Rocks appear only in the light (faceted, with a moving foam ring). When the light leaves, a dashed amber outline fades out over the reef-memory time.
+   - A ship home: rings on the water and a "+10" coin pop. A wreck: splinters, foam and a small camera shake.
+   - Amber arrows at the screen edge point at ships you can't see yet (try a narrow window or your phone).
+3. Press the **`** key for the debug panel. New switches:
+   - **Region**: try all five tints. Northern Ice snows, Storm Strait rains.
+   - **Weather**: clear, fog, rain or snow on any region.
+   - **Quality**: Low, Medium, High or Auto. The top line shows the frame rate and which level Auto settled on.
+   - **All buildings**: the island as it will look after the campaign (cottage, wharf, chapel, market, festival lights).
+   - **Ship parade**: all six ship types lit side by side, so you can judge whether they're easy to tell apart.
+   - **Reveal all** still outlines hidden rocks and dark ships in red.
+4. **On your phone** (same Wi-Fi), open the **Network** address with `?debug&quality=medium` on the end. Play a night and watch the fps number: Medium should hold 60. Then try `&parade` to look at the ships at phone size.
+5. **Weak-device check:** in desktop Chrome, open DevTools, go to Performance, set CPU to 6× slowdown, and reload with `?debug&quality=low`. It should stay smooth. With `quality=auto` you should see it step down after about 3 s.
+6. Screenshots of every look are in `docs/screenshots/phase-03/`. To retake them: `SCREENSHOTS=1 npx playwright test screenshots` (with no dev server running, or with it on port 5173).
+7. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run e2e`.
+8. Handy address options: `?seed=42`, `?quality=low|medium|high|auto`, `?region=northernIce`, `?weather=rain`, `?parade`, `?buildings=all`, `?reveal`, `?renderer=webgpu`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
 
 - **2026-11-12 · Phase 01 Foundation.** Set up Vite + TypeScript (strict) + PixiJS 8 + Vitest + Playwright + ESLint + Prettier with pinned versions. Created the folder layout with a description in each folder. Built `src/app/` (viewport and scale, fixed 60 Hz game loop with catch-up cap and pause on hidden tab, scene manager with back stack and fade), the seeded RNG, angle helpers, data files for quality, viewport, loop, beam and island, colour and font tokens with local fonts, the ten render layers, and a placeholder play scene. 38 unit tests plus 3 browser smoke tests (portrait, landscape, desktop). Phase complete; owner accepted all checks on 2026-11-13 and asked for the commit.
 - **2026-11-13 · Phase 02 Core simulation.** Built the pure, deterministic simulation in `src/sim/` (world, beam, ships, reefs, spawner, rules, bonus objectives, typed events, level validator). Its data lives in `src/data/` (ships, ship behavior, difficulties, sea rules, controls, level 1-2). Input (`src/input/`): follow finger, drag to rotate, keyboard, pause. A debug renderer (`src/render/debug/`), a debug panel, and a temporary HUD and end card, so 1-2 plays start to finish. The fairness test found reefs too close to the beam's edge; added the reef range margin rule and moved 1-2's reefs. 117 unit tests (including determinism and fairness across 120 seeds × 3 difficulties × 2 lazy players) and 4 browser tests. Phase complete, waiting for the owner's play-test.
-
+- **2026-11-13 · Phase 03 Rendering & visuals.** Replaced the debug drawing with `src/render/Renderer.ts` and its views: water shader (GLSL + WGSL) with a Low fallback, light-map darkness with blur and "breathing" noise, beam air glow, shaft, bloom and lamp flicker, seeded low-poly reefs with foam rings and dashed memory outlines, shallows, buoys, six ship looks with upright rigs, bob, roll, wakes, lanterns, lost markers and edge arrows, the island with tower and five campaign buildings, two fog banks, rain, snow and beam spray, and event-driven effects (rings, coin pop, splinters, foam, shake). All shapes sit behind `ArtProvider` in `src/render/art/`. Region palettes, render feel numbers and Auto-quality settings are in `src/data/`. The debug panel gained Region, Weather, Quality, All buildings and Ship parade. 29 new unit tests (Auto quality, dashes, reef shapes, edge arrows, shake, blending, regions, address options) and 1 new browser test (switching every look mid-night); 146 unit + 5 browser tests pass. Measured draw calls in a busy scene: 18 per frame at High (budget 60), 14 at Medium, 9 at Low. 16 review screenshots saved. Phase complete; owner accepted on 2026-11-13.

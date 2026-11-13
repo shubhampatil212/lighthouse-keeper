@@ -62,6 +62,7 @@ export function testLevel(overrides: Partial<LevelDef> = {}): LevelDef {
   return {
     id: 'test',
     name: 'Test night',
+    region: 'harborBay',
     seed: 7,
     ships: [{ type: 'fishing', at: 0, angle: 0 }],
     reefs: [],

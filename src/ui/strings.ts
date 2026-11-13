@@ -6,6 +6,10 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 const SHIP_NAMES: Record<ShipTypeId, { one: string; many: string }> = {
   fishing: { one: 'fishing boat', many: 'fishing boats' },
   cargo: { one: 'cargo ship', many: 'cargo ships' },
+  sailboat: { one: 'sailboat', many: 'sailboats' },
+  ferry: { one: 'ferry', many: 'ferries' },
+  tugboat: { one: 'tugboat', many: 'tugboats' },
+  smuggler: { one: 'smuggler', many: 'smugglers' },
 };
 
 export const STRINGS = {

@@ -1,18 +1,40 @@
 /**
- * Developer panel: frame rate, tick count, ships, seed and viewport, plus switches for "reveal all",
- * the control style, the difficulty and restarting. Toggle with the ` key; ?debug opens it at start.
+ * Developer panel: frame rate, graphics quality, tick count, ships, seed and viewport, plus switches
+ * for "reveal all", the control style, the difficulty, restarting, and the look (region tint, weather,
+ * quality, island buildings, ship parade). Toggle with the ` key; ?debug opens it at start.
  * It's a developer tool, so its labels aren't in strings.ts and it reads the world directly.
  */
 import './debugPanel.css';
 import type { Viewport } from '../app/viewport';
-import type { ControlStyle, DifficultyId } from '../data/types';
+import { REGION_IDS, type WeatherPresetId } from '../data/regions';
+import type { ControlStyle, DifficultyId, QualityChoice, RegionId } from '../data/types';
 import type { World } from '../sim/world';
 
 export interface DebugSettings {
   revealAll: boolean;
   style: ControlStyle;
   difficulty: DifficultyId;
+  /** 'level' = the level's own region. */
+  region: RegionId | 'level';
+  /** 'level' = the level's (or region's) own weather. */
+  weather: WeatherPresetId | 'level';
+  quality: QualityChoice;
+  /** Show every island building, as if the campaign were finished. */
+  allBuildings: boolean;
+  /** All six ship types side by side, lit. */
+  parade: boolean;
 }
+
+export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
+  revealAll: false,
+  style: 'follow',
+  difficulty: 'keeper',
+  region: 'level',
+  weather: 'level',
+  quality: 'auto',
+  allBuildings: false,
+  parade: false,
+};
 
 export interface DebugPanelHandlers {
   onChange(settings: DebugSettings): void;
@@ -25,6 +47,8 @@ export interface DebugPanel {
   setViewport(vp: Viewport): void;
   showWorld(world: World, paused: boolean): void;
   setSettings(settings: DebugSettings): void;
+  /** For example "auto → medium". */
+  setQualityStatus(text: string): void;
   readonly open: boolean;
 }
 
@@ -34,6 +58,58 @@ const STYLES: readonly [ControlStyle, string][] = [
   ['follow', 'Follow finger'],
   ['drag', 'Drag to rotate'],
 ];
+const QUALITIES: readonly (readonly [QualityChoice, string])[] = [
+  ['auto', 'Auto'],
+  ['low', 'Low'],
+  ['medium', 'Medium'],
+  ['high', 'High'],
+];
+const WEATHERS: readonly (readonly [WeatherPresetId | 'level', string])[] = [
+  ['level', 'Level'],
+  ['clear', 'Clear'],
+  ['fog', 'Fog'],
+  ['rain', 'Rain'],
+  ['snow', 'Snow'],
+];
+
+function select<T extends string>(
+  legend: string,
+  options: readonly (readonly [T, string])[],
+  onPick: (value: T) => void,
+): { element: HTMLLabelElement; set(value: T): void } {
+  const element = document.createElement('label');
+  const input = document.createElement('select');
+  for (const [value, text] of options) input.append(new Option(text, value));
+  input.addEventListener('change', () => {
+    const picked = options.find(([value]) => value === input.value);
+    if (picked) onPick(picked[0]);
+  });
+  element.append(legend, input);
+  return {
+    element,
+    set(value) {
+      input.value = value;
+    },
+  };
+}
+
+function checkbox(
+  text: string,
+  onToggle: (on: boolean) => void,
+): { element: HTMLLabelElement; set(on: boolean): void } {
+  const input = Object.assign(document.createElement('input'), { type: 'checkbox' });
+  input.addEventListener('change', () => {
+    onToggle(input.checked);
+  });
+  const element = document.createElement('label');
+  element.append(input, text);
+  return {
+    element,
+    set(on) {
+      input.checked = on;
+    },
+  };
+}
 
 function radioGroup<T extends string>(
   legend: string,
@@ -72,20 +148,39 @@ export function createDebugPanel(
   root.setAttribute('aria-label', 'Debug panel');
   const readout = document.createElement('pre');
 
-  let settings: DebugSettings = { revealAll: false, style: 'follow', difficulty: 'keeper' };
+  let settings: DebugSettings = DEFAULT_DEBUG_SETTINGS;
   const change = (next: Partial<DebugSettings>): void => {
     settings = { ...settings, ...next };
     handlers.onChange(settings);
   };
 
-  const reveal = Object.assign(document.createElement('input'), { type: 'checkbox' });
-  reveal.addEventListener('change', () => {
-    change({ revealAll: reveal.checked });
+  const reveal = checkbox('Reveal all', (on) => {
+    change({ revealAll: on });
   });
-  const revealLabel = document.createElement('label');
-  revealLabel.append(reveal, 'Reveal all');
+  const buildings = checkbox('All buildings', (on) => {
+    change({ allBuildings: on });
+  });
+  const parade = checkbox('Ship parade', (on) => {
+    change({ parade: on });
+  });
   const view = document.createElement('fieldset');
-  view.append(revealLabel);
+  view.append(reveal.element, buildings.element, parade.element);
+
+  const region = select(
+    'Region ',
+    [['level', 'Level'] as const, ...REGION_IDS.map((id) => [id, id] as const)],
+    (value) => {
+      change({ region: value });
+    },
+  );
+  const weather = select('Weather ', WEATHERS, (value) => {
+    change({ weather: value });
+  });
+  const quality = select('Quality ', QUALITIES, (value) => {
+    change({ quality: value });
+  });
+  const look = document.createElement('fieldset');
+  look.append(region.element, weather.element, quality.element);
 
   const style = radioGroup('Controls', 'debug-style', STYLES, (value) => {
     change({ style: value });
@@ -139,7 +234,7 @@ export function createDebugPanel(
   });
   restart.append(hide);
 
-  root.append(readout, view, style.element, difficulty.element, restart);
+  root.append(readout, view, look, style.element, difficulty.element, restart);
   parent.append(root, opener);
 
   window.addEventListener('keydown', (event) => {
@@ -147,6 +242,7 @@ export function createDebugPanel(
   });
 
   let renderer = '';
+  let qualityText = '';
   let viewportText = '';
   let worldText = '';
   let frames = 0;
@@ -155,7 +251,7 @@ export function createDebugPanel(
   let lastPaint = 0;
 
   const paint = (): void => {
-    readout.textContent = `${renderer}  ${fps} fps\n${worldText}\n${viewportText}`;
+    readout.textContent = `${renderer}  ${fps} fps  quality ${qualityText}\n${worldText}\n${viewportText}`;
   };
 
   return {
@@ -191,9 +287,17 @@ export function createDebugPanel(
     },
     setSettings(next) {
       settings = next;
-      reveal.checked = next.revealAll;
+      reveal.set(next.revealAll);
+      buildings.set(next.allBuildings);
+      parade.set(next.parade);
+      region.set(next.region);
+      weather.set(next.weather);
+      quality.set(next.quality);
       style.set(next.style);
       difficulty.set(next.difficulty);
+    },
+    setQualityStatus(text) {
+      qualityText = text;
     },
     get open() {
       return isOpen;

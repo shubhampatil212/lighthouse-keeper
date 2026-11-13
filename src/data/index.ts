@@ -10,6 +10,8 @@ export * from './levels';
 export * from './loop';
 export * from './play';
 export * from './quality';
+export * from './regions';
+export * from './renderFeel';
 export * from './sea';
 export * from './shipBehavior';
 export * from './ships';

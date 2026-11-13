@@ -2,6 +2,9 @@
 
 export type QualityLevel = 'low' | 'medium' | 'high';
 
+/** What the player picks: a fixed level, or Auto (measures and steps down if frames are slow). */
+export type QualityChoice = QualityLevel | 'auto';
+
 export interface QualityProfile {
   /** Highest devicePixelRatio the renderer may use at this level. */
   maxPixelRatio: number;
@@ -14,6 +17,17 @@ export interface QualityProfile {
   fogLayers: number;
   fogSpray: boolean;
   particleCap: number;
+}
+
+/** Auto quality: starts at Medium and steps down if frames are slow (docs/ART_AUDIO.md). */
+export interface AutoQualityConfig {
+  start: QualityLevel;
+  /** Seconds of frames averaged before each decision. */
+  windowSeconds: number;
+  /** Drop one level when the average frame takes longer than this (milliseconds). */
+  slowFrameMs: number;
+  /** Frames longer than this (a hidden tab, a debugger) are ignored (milliseconds). */
+  ignoreFrameMs: number;
 }
 
 export interface ViewportConfig {
@@ -48,6 +62,35 @@ export interface IslandShape {
   radius: number;
 }
 
+/** Buildings that appear on the island as the campaign goes on (docs/GDD.md §4), in unlock order. */
+export type IslandBuildingId = 'cottage' | 'dock' | 'chapel' | 'market' | 'festivalLights';
+
+/** The five campaign regions (docs/CONTENT.md §6). Each tints the water, darkness and fog. */
+export type RegionId =
+  'harborBay' | 'northernIce' | 'stormStrait' | 'smugglersCove' | 'archipelago';
+
+/** A region's colors (0xRRGGBB). */
+export interface RegionPalette {
+  /** Far water and the top of the screen. */
+  waterDeep: number;
+  /** Near water. */
+  waterMid: number;
+  /** Wave crests, foam and sparkles. */
+  waterCrest: number;
+  /** What the darkness multiplies the world by where no light falls. */
+  night: number;
+  /** Color of the light added where the beam and glows fall (warm amber in most regions). */
+  light: number;
+  fog: number;
+}
+
+/** Weather for a night. Each amount is 0 (none) to 1 (heavy). */
+export interface WeatherDef {
+  fog: number;
+  rain: number;
+  snow: number;
+}
+
 export interface SceneTransitionConfig {
   /** Length of each half of the fade between screens, in milliseconds. */
   fadeMs: number;
@@ -79,7 +122,8 @@ export interface BeamFeelConfig {
   startAngle: number;
 }
 
-export type ShipTypeId = 'fishing' | 'cargo';
+/** Every ship type in docs/CONTENT.md §2. Sailboat, ferry, tugboat and smuggler behaviors arrive in phase 04. */
+export type ShipTypeId = 'fishing' | 'cargo' | 'sailboat' | 'ferry' | 'tugboat' | 'smuggler';
 
 export interface ShipTypeConfig {
   /** Full speed, world units per second. */
@@ -222,6 +266,9 @@ export interface StarRules {
 export interface LevelDef {
   id: string;
   name: string;
+  region: RegionId;
+  /** Left out = the region's usual weather. */
+  weather?: WeatherDef;
   /** Seed for the level's fixed layout (generated rocks). */
   seed: number;
   ships: readonly ShipSpawnDef[];
@@ -251,4 +298,75 @@ export interface ControlsConfig {
 export interface PlayConfig {
   /** Seconds between the night ending and the end card appearing. */
   endCardDelay: number;
+}
+
+/** How the night looks and moves. Drawing only: none of this changes the simulation. */
+export interface RenderFeelConfig {
+  /** The light map is drawn at this fraction of the screen's resolution (it's blurred anyway). */
+  lightMapResolution: number;
+  /** Strength (0–1) of the light added inside the beam, around the island, under buoys and under lanterns. */
+  beamLight: number;
+  islandLight: number;
+  buoyLight: number;
+  lanternLight: number;
+  /** Radius of the small pool of light under a lantern, world units. */
+  lanternPoolRadius: number;
+  /** Strength of the soft halo just outside the cone (the beam's wide edge), 0–1. */
+  beamHalo: number;
+  /** The halo is this many times wider than the cone. */
+  beamHaloWidth: number;
+  /** High quality: how strongly noise makes the beam edge "breathe" (0–1), and how fast it moves. */
+  beamBreath: number;
+  beamBreathSpeed: number;
+  /** Strength of the glow shaft from the lamp glass, and how far along the beam it reaches (fraction of range). */
+  shaftAlpha: number;
+  shaftReach: number;
+  /** Lamp bloom radius (world units) and how much the lamp glass flickers (0–1). */
+  bloomRadius: number;
+  lampFlicker: number;
+  /** Seconds a hull, sail or rock takes to fade in or out when the light reaches or leaves it. */
+  revealFade: number;
+  /** Ship bobbing (world units up and down) and roll (radians), with their speeds. */
+  bobHeight: number;
+  bobSpeed: number;
+  rollAngle: number;
+  rollSpeed: number;
+  /** Lantern glow radius (world units): in the dark, and when lit. */
+  lanternGlowDark: number;
+  lanternGlowLit: number;
+  /** Wake: line width (world units) and brightness at the ship. */
+  wakeWidth: number;
+  wakeAlpha: number;
+  /** "Lost" marker pulse speed. */
+  lostPulseSpeed: number;
+  /** Edge arrows: seconds before a ship appears that its arrow shows, and the arrow's distance from the screen edge (CSS px). */
+  arrowLookAhead: number;
+  arrowInset: number;
+  arrowSize: number;
+  /** Reef memory outline: dash and gap length (world units) and brightness at full memory. */
+  memoryDash: number;
+  memoryGap: number;
+  memoryAlpha: number;
+  /** Foam ring around rocks: how far it reaches past the rock and how much it pulses (world units). */
+  foamReach: number;
+  foamPulse: number;
+  /** Fog: drift speeds of the two layers (CSS px per second) and their opacity at fog amount 1. */
+  fogSpeedNear: number;
+  fogSpeedFar: number;
+  fogAlphaNear: number;
+  fogAlphaFar: number;
+  /** Rain and snow particles alive at amount 1 (still limited by the quality's particle cap). */
+  rainDrops: number;
+  snowFlakes: number;
+  /** Effects. */
+  rippleSeconds: number;
+  rippleRadius: number;
+  splinterCount: number;
+  splinterSeconds: number;
+  foamBurstCount: number;
+  foamSeconds: number;
+  coinPopSeconds: number;
+  /** Camera shake on a wreck: strength in CSS px and how long it lasts. */
+  shakeStrength: number;
+  shakeSeconds: number;
 }

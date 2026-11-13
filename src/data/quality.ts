@@ -1,4 +1,4 @@
-import type { QualityLevel, QualityProfile } from './types';
+import type { AutoQualityConfig, QualityLevel, QualityProfile } from './types';
 
 /** Graphics quality levels, from docs/ART_AUDIO.md "Quality settings". */
 export const QUALITY: Record<QualityLevel, QualityProfile> = {
@@ -36,3 +36,11 @@ export const QUALITY: Record<QualityLevel, QualityProfile> = {
 
 /** Quality used until the settings screen exists. "Auto" also starts here. */
 export const DEFAULT_QUALITY: QualityLevel = 'medium';
+
+/** "Auto" (docs/ART_AUDIO.md): start at Medium, average 3 s of frames, drop a level above 20 ms. */
+export const AUTO_QUALITY: AutoQualityConfig = {
+  start: 'medium',
+  windowSeconds: 3,
+  slowFrameMs: 20,
+  ignoreFrameMs: 250,
+};

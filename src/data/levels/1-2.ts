@@ -9,6 +9,7 @@ import type { LevelDef } from '../types';
 export const LEVEL_1_2: LevelDef = {
   id: '1-2',
   name: 'The cargo run',
+  region: 'harborBay',
   seed: 1002,
   ships: [
     { type: 'fishing', at: 1.5, edge: 'north' },
