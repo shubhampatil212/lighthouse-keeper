@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_STARS } from '../../src/data';
+import { DEFAULT_STARS, DIFFICULTIES, LOOP } from '../../src/data';
 import {
   allShipsResolved,
   createObjective,
@@ -69,26 +69,36 @@ describe('bonus objectives', () => {
   });
 
   it('"none" is always met', () => {
-    const objective = createObjective({ kind: 'none' }, level);
-    expect(objective.isMet(objective.start())).toBe(true);
+    const objective = createObjective({ kind: 'none' }, level, DIFFICULTIES.keeper, LOOP.stepHz);
+    expect(objective.isMet(objective.start(), 0)).toBe(true);
   });
 
   it('"save all of a type" needs every ship of that type home', () => {
-    const objective = createObjective({ kind: 'saveAllOfType', type: 'cargo' }, level);
+    const objective = createObjective(
+      { kind: 'saveAllOfType', type: 'cargo' },
+      level,
+      DIFFICULTIES.keeper,
+      LOOP.stepHz,
+    );
     const progress = objective.start();
     objective.onEvent(progress, saved('cargo'));
     objective.onEvent(progress, wrecked('fishing'));
-    expect(objective.isMet(progress)).toBe(false);
+    expect(objective.isMet(progress, 0)).toBe(false);
     objective.onEvent(progress, saved('cargo'));
-    expect(objective.isMet(progress)).toBe(true);
+    expect(objective.isMet(progress, 0)).toBe(true);
   });
 
   it('"save all of a type" breaks when one of them wrecks', () => {
-    const objective = createObjective({ kind: 'saveAllOfType', type: 'cargo' }, level);
+    const objective = createObjective(
+      { kind: 'saveAllOfType', type: 'cargo' },
+      level,
+      DIFFICULTIES.keeper,
+      LOOP.stepHz,
+    );
     const progress = objective.start();
     objective.onEvent(progress, saved('cargo'));
     objective.onEvent(progress, wrecked('cargo'));
     objective.onEvent(progress, saved('cargo'));
-    expect(objective.isMet(progress)).toBe(false);
+    expect(objective.isMet(progress, 0)).toBe(false);
   });
 });

@@ -99,8 +99,53 @@ Level format in `src/data/levels/<region>-<n>.ts`: id, name, seed, ships (list o
 
 Levels other than 1-1 to 1-6 must be designed by Claude Code following the curve: each region's levels 1–2 introduce, 3–5 combine, 6 is the test. Target difficulty on Keeper: a first-time player earns ★★ on most levels and ★★★ after practice.
 
+### Designed levels, regions 2–5 (phase 06)
+Ship counts include smugglers. Shapes and exact positions are in `src/data/levels/<region>-<n>.ts`; how the bots fare is in `docs/balance-report.md`.
+
+| Level | Name | Ships | What it tests | Bonus objective |
+|---|---|---|---|---|
+| 2-1 | Frost line | 10 | Foghorn (lent for the night): ships in bunches of three from the north | 3 ships home within 6 s of each other |
+| 2-2 | Drifting giants | 10 | Two icebergs, two small reefs | No ship in the dark for over 7 s |
+| 2-3 | The ferry | 11 | First ferry, down a channel between rock walls | Finish within 95 s |
+| 2-4 | White wall | 12 | Fog bands over the east and north | No ship in the dark for over 7 s |
+| 2-5 | Calving season | 12 | Four drifting icebergs, a ferry | Save every cargo ship (★★★ allows 1 wreck) |
+| 2-6 | Polar night | 14 | Finale: fog, icebergs, ferry | — (★★★ = no wrecks) |
+| 3-1 | Flash of white | 12 | Lightning; one flare lent | No ship in the dark for over 7 s |
+| 3-2 | Tug duty | 13 | Tug-led convoys from two sides | Save every tugboat (★★★ allows 1 wreck) |
+| 3-3 | The maelstrom | 12 | Whirlpool beside a reef wall | 3 ships home within 8 s |
+| 3-4 | Crosswaves | 12 | Storm waves, inner reef ring | Finish within 85 s |
+| 3-5 | No rest | 14 | Lightning, waves and a whirlpool | No ship in the dark for over 8 s |
+| 3-6 | The great storm | 16 | Finale: everything in the strait | Never fire a flare |
+| 4-1 | Shadows on the water | 11 | Smugglers (3) | Catch 2 smugglers |
+| 4-2 | Contraband | 13 | Smugglers (5) | Catch every smuggler |
+| 4-3 | Black sails | 12 | One pirate | Drive pirates away twice |
+| 4-4 | Escort | 12 | Ferry with a pirate nearby | No ship in the dark for over 8 s |
+| 4-5 | Moonless | 13 | Six reefs inside a ring of fog | 3 ships home within 8 s |
+| 4-6 | The pirate king | 16 | Finale: two pirates, smugglers, ferry | — |
+| 5-1 | Two lights | 14 | Second lamp; reefs only it reaches well | No ship in the dark for over 7 s |
+| 5-2 | Red and blue | 14 | Two harbors | Finish within 100 s |
+| 5-3 | Island hopping | 14 | Second lamp and two harbors | No ship in the dark for over 8 s |
+| 5-4 | Festival night | 20 | Heavy traffic, 2 s apart | 4 ships home within 8 s |
+| 5-5 | Everything at once | 16 | Lamps, harbors, ice, fog, lightning, pirate, smugglers | Catch every smuggler |
+| 5-6 | The longest night | 30 | Finale | — |
+
+### Level rules added in phase 06
+- **Bonus objectives** (`BonusObjectiveDef`): save every ship of a type; no ship in the dark longer than N s (only counted while a lamp could reach it, fog included); finish within N s (stretched by the difficulty's spawn interval, so ×1.3 on Calm); N ships home within N s of each other; catch N (or all) smugglers; never use an ability; drive pirates away N times.
+- **★★★ wreck allowance per level:** where the bonus is "save every X", ★★★ allows one wreck of another type, or the bonus would add nothing.
+- **Lent abilities:** a level may lend an ability for its night (2-1 the foghorn, 3-1 one flare), so its tutorial works before the shop sells it.
+- **Current limit:** on every difficulty, a level's current (× the ship's wind factor) may be at most 75% of the slowest ship's dark speed (`SEA.currentMaxShare`). Stronger currents held ships at the spawn ring and the night never ended.
+- **Fog and rocks (fairness):** no rock may sit behind a fog band as seen from a lamp, and every rock keeps at least 10 wu of open water from any band (`HAZARDS.fog.rockClearance`). With rocks inside or behind fog, a ship became lightable only about 1 s before it hit them.
+- **Star coins:** 5 coins for each star earned for the first time on a level at a difficulty (× the difficulty's coin reward). Replays pay their ships again but not their stars.
+
 ## 7. Endless watch
 Starts at 1 ship every 6 s. Every 30 s: spawn interval ×0.92 (minimum 1.6 s), one new reef cluster, and a new hazard type every 2 minutes from those the player has unlocked. Score = ships saved × 10 + time survived in seconds. The run ends at the difficulty's wreck allowance.
+
+Details picked in phase 06 (`src/data/endless.ts`):
+- The run ends when wrecks go **past** the allowance, the same rule as the campaign.
+- The sea starts with 2 reef clusters; at most 12. New reefs sit 75–90 wu out, 30 wu clear of other rocks, 45 wu clear of any ship, and clear of whirlpools.
+- Ships and hazards come from the campaign nights the keeper has cleared. No ferries (a lost ferry would end the run at once). Ship mix: fishing 6, cargo 2, sailboat 2, tugboat 1, smuggler 1.
+- The current is 2.5 wu/s in a direction from the seed. The difficulty's multipliers apply as in the campaign; saved ships pay coins.
+- **Daily sea:** the seed comes from the player's local date, and it uses every ship type and hazard, so every keeper gets the same sea that day. Best daily score is kept per day.
 
 ## 8. Economy check
 A full ★★★ run of a region should earn about 1.3× what it costs to max out that region's most useful upgrade path, so the player always has something to buy but can't buy everything until about region 4.

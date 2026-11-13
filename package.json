@@ -12,6 +12,7 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "e2e": "playwright test",
+    "playtest": "vitest run --config vitest.playtest.config.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.sim.json",
     "format": "prettier --write ."

@@ -52,6 +52,8 @@ export interface DebugPanel {
   setSettings(settings: DebugSettings): void;
   /** For example "auto → medium". */
   setQualityStatus(text: string): void;
+  /** Adds a section (for example the campaign controls) at the bottom. */
+  addSection(section: HTMLElement): void;
   readonly open: boolean;
 }
 
@@ -307,6 +309,9 @@ export function createDebugPanel(
     },
     setQualityStatus(text) {
       qualityText = text;
+    },
+    addSection(section) {
+      root.append(section);
     },
     get open() {
       return isOpen;

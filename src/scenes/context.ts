@@ -15,6 +15,8 @@ export interface GameContext {
   version: string;
   /** Start a night of a campaign level (or a debug level id). */
   startNight(levelId: string): void;
+  /** Start an endless watch: a free one, or today's daily sea. */
+  startWatch(daily: boolean): void;
   /** A short notice at the bottom of the screen. */
   toast(text: string): void;
 }

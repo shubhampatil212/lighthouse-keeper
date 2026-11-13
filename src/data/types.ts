@@ -247,6 +247,11 @@ export interface SeaConfig {
    * ship drifting toward it is in reach of the light for long enough to be saved.
    */
   reefRangeMargin: number;
+  /**
+   * A level's current (after difficulty and wind) may be at most this share of the slowest ship's
+   * dark speed, so a drifting ship always makes headway and the night always ends.
+   */
+  currentMaxShare: number;
 }
 
 /** Bought upgrade levels the player brings into a night. */
@@ -317,6 +322,11 @@ export type HazardKind = HazardDef['kind'];
 export interface FogConfig {
   /** The beam's range is multiplied by this for anything it has to reach through fog. */
   rangeFactor: number;
+  /**
+   * Fairness: no rock may sit behind a fog band (seen from a lamp), and every rock keeps this much
+   * open water from any band, so a ship leaving the fog has time to be lit before it reaches rock.
+   */
+  rockClearance: number;
 }
 
 export interface IcebergConfig {
@@ -436,13 +446,101 @@ export interface HazardsConfig {
   pirate: PirateConfig;
 }
 
-export type BonusObjectiveDef = { kind: 'none' } | { kind: 'saveAllOfType'; type: ShipTypeId };
+/** The extra task a level asks for its third star (docs/GDD.md §3.5). */
+export type BonusObjectiveDef =
+  | { kind: 'none' }
+  /** Every ship of this type gets home. */
+  | { kind: 'saveAllOfType'; type: ShipTypeId }
+  /** No ship stays in the dark longer than this many seconds. */
+  | { kind: 'noLongDark'; seconds: number }
+  /** The night ends within this many seconds (stretched by the difficulty's spawn interval). */
+  | { kind: 'finishUnder'; seconds: number }
+  /** At some point, `count` ships get home within `within` seconds of each other. */
+  | { kind: 'savedTogether'; count: number; within: number }
+  /** Catch this many smugglers ('all' = every one scheduled). */
+  | { kind: 'catchSmugglers'; count: number | 'all' }
+  /** Never use this ability tonight. */
+  | { kind: 'noAbility'; ability: 'foghorn' | 'flare' }
+  /** Drive pirates off with the light this many times. */
+  | { kind: 'driveOffPirates'; count: number };
+
+/** Ability levels a level lends for its night, so a tutorial night works before the shop sells it. */
+export interface AbilityLoan {
+  foghorn?: number;
+  flares?: number;
+}
+
+/** Lines the scripted tutorial can show (text in src/ui/text/screens.ts). */
+export type TutorialPromptId = 'followLight' | 'swingBeam' | 'rocksSeen';
+
+/** What starts a tutorial step. */
+export type TutorialTrigger =
+  | { kind: 'start' }
+  /** The `count`-th ship got home. */
+  | { kind: 'saved'; count: number }
+  /** The first reef shows in the light. */
+  | { kind: 'reefRevealed' };
+
+/** One step of a level's scripted tutorial (docs/GDD.md §7). It never blocks play. */
+export interface TutorialStep {
+  when: TutorialTrigger;
+  prompt: TutorialPromptId | null;
+  /** The prompt hides once any ship is lit after the step starts (else after the hint time). */
+  hideOnLit?: boolean;
+  /** Swing the beam to this angle for the player, for `steerSeconds`. */
+  steerTo?: number;
+  steerSeconds?: number;
+}
 
 export interface StarRules {
   /** ★★ needs at most this many wrecks. */
   twoStarMaxWrecks: number;
   /** ★★★ needs at most this many wrecks, plus the bonus objective. */
   threeStarMaxWrecks: number;
+}
+
+/** Endless watch rules (docs/CONTENT.md §7). Times in seconds, before the difficulty's multipliers. */
+export interface EndlessConfig {
+  /** Seconds between ships at the start; every `rampEvery` s it is multiplied by `rampFactor`. */
+  startInterval: number;
+  rampEvery: number;
+  rampFactor: number;
+  minInterval: number;
+  /** A new hazard type joins every this many seconds. */
+  hazardEvery: number;
+  /** Reef clusters on the sea at the start; one more joins every `rampEvery` s, up to `maxReefs`. */
+  startReefs: number;
+  maxReefs: number;
+  /** Reef centres sit this far out (inside the storm-wave limit, so waves can join later). */
+  reefDistanceMin: number;
+  reefDistanceMax: number;
+  /** Open water a new reef keeps from other rocks, and from any ship at sea. */
+  reefClearance: number;
+  shipClearance: number;
+  /** Score = ships saved × scorePerShip + whole seconds survived. */
+  scorePerShip: number;
+  /** The current's strength (its direction comes from the seed). */
+  currentStrength: number;
+  /** How often each ship type turns up, relative to the others (only types the keeper has met). */
+  shipWeights: Readonly<Partial<Record<ShipTypeId, number>>>;
+  /** Where joining hazards are placed. */
+  fogDistance: number;
+  fogLength: number;
+  fogWidth: number;
+  icebergDistance: number;
+  whirlpoolDistance: number;
+}
+
+/** What an endless watch may send: the ship types and hazards the keeper has met. */
+export interface WatchDef {
+  ships: readonly ShipTypeId[];
+  hazards: readonly HazardKind[];
+}
+
+/** Coins paid at dawn for stars (docs/GDD.md §4: "coins come from saved ships and star bonuses"). */
+export interface StarCoinConfig {
+  /** For each star earned for the first time on a level, at that difficulty (before its coin bonus). */
+  perNewStar: number;
 }
 
 export interface LevelDef {
@@ -463,8 +561,12 @@ export interface LevelDef {
   secondLamp?: { x: number; y: number };
   bonus: BonusObjectiveDef;
   stars: StarRules;
-  /** Tutorial prompts arrive with level 1-1 in phase 06. */
-  tutorial?: readonly never[];
+  /** Where the beam points when the night begins (left out = BEAM_FEEL.startAngle). */
+  beamStart?: number;
+  /** Abilities lent for this night (the night uses the better of these and the keeper's own). */
+  loan?: AbilityLoan;
+  /** A scripted tutorial (1-1). */
+  tutorial?: readonly TutorialStep[];
 }
 
 /** How the player swings the beam: point at where it should go, or turn it like a dial. */
@@ -483,6 +585,8 @@ export interface PlayConfig {
   endCardDelay: number;
   /** How long a contextual tutorial prompt stays up (seconds). */
   hintSeconds: number;
+  /** A tutorial prompt that waits for the player to light a ship stays up at most this long. */
+  waitPromptSeconds: number;
 }
 
 /** How the night looks and moves. Drawing only: none of this changes the simulation. */

@@ -15,6 +15,8 @@ export const SEA: SeaConfig = {
   rockSpread: 15,
   // Found with the fairness test (tests/sim/fairness.test.ts); see docs/PROGRESS.md.
   reefRangeMargin: 50,
+  // Found with the play-tester: at 8 wu/s a dark cargo ship on Storm was held at the spawn ring.
+  currentMaxShare: 0.75,
 };
 
 /** A new keeper's upgrades: nothing bought yet. */

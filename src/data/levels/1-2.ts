@@ -28,5 +28,7 @@ export const LEVEL_1_2: LevelDef = {
   hazards: [],
   current: { angle: 0.6, strength: 4 },
   bonus: { kind: 'saveAllOfType', type: 'cargo' },
-  stars: DEFAULT_STARS,
+  // One fishing boat may be lost and the bonus still earns ★★★; otherwise "save both cargo ships"
+  // would add nothing to "no wrecks".
+  stars: { ...DEFAULT_STARS, threeStarMaxWrecks: 1 },
 };

@@ -2,7 +2,7 @@
  * Puts the game together: the screens, how a night is started and finished, and how settings and
  * progress reach the screens that use them.
  */
-import { CAMPAIGN } from '../data';
+import { CAMPAIGN, ENDLESS } from '../data';
 import type { LevelDef, Upgrades } from '../data/types';
 import type { GameSettings } from '../data/uiTypes';
 import type { Backdrop } from '../scenes/backdrop';
@@ -11,7 +11,7 @@ import { createBriefingScene } from '../scenes/briefing';
 import { SCENE, type GameContext } from '../scenes/context';
 import { createCreditsScene } from '../scenes/credits';
 import { createDifficultyScene } from '../scenes/difficulty';
-import { createEndlessResultsScene } from '../scenes/endlessResults';
+import { createEndlessResultsScene, type EndlessResultsParams } from '../scenes/endlessResults';
 import { createLevelSelectScene } from '../scenes/levelSelect';
 import { createLogbookScene } from '../scenes/logbook';
 import { createMapScene } from '../scenes/map';
@@ -26,8 +26,17 @@ import { createSettingsPanel } from '../ui/settingsPanel';
 import { STRINGS } from '../ui/strings';
 import { createToast } from '../ui/toast';
 import { levelDef, placeOf } from './campaign';
+import { DAILY_ID, dailyKey, isWatchId, watchNight } from './endless';
 import { createNavigator } from './navigator';
-import { NEW_PROGRESS, recordResult, upgradesFor, type Progress } from './progress';
+import { watchScore } from '../sim/endless';
+import {
+  NEW_PROGRESS,
+  recordEndless,
+  recordResult,
+  upgradesFor,
+  type NightAward,
+  type Progress,
+} from './progress';
 import type { SceneManager, StackEntry } from './sceneManager';
 import type { Store } from './store';
 
@@ -76,16 +85,52 @@ export function createGame(parts: GameParts): Game {
       const upgrades: Upgrades = upgradesFor(progress.get(), levelId);
       void nav.reset(SCENE.play, { level, upgrades }, stackFor(levelId));
     },
+    startWatch(daily) {
+      const night = watchNight(progress.get(), daily, new Date());
+      const upgrades: Upgrades = { ...progress.get().upgrades, buoys: [] };
+      void nav.reset(
+        SCENE.play,
+        { level: night.level, upgrades, watch: night.watch, seed: night.seed, daily: night.daily },
+        [{ name: SCENE.title, params: {} }],
+      );
+    },
     toast: createToast(parts.uiRoot),
   };
 
   const hooks: PlayHooks = {
     onNightEnd(level, result, report) {
-      // Only campaign nights count towards progress (not debug demos).
-      if (placeOf(level.id)) {
-        progress.update((p) => recordResult(p, level.id, settings.get().difficulty, result));
+      if (isWatchId(level.id)) {
+        const before = progress.get();
+        const daily = level.id === DAILY_ID ? dailyKey(new Date()) : null;
+        const score = watchScore(result.saved, result.time, ENDLESS);
+        const best = daily
+          ? before.dailyBest?.date === daily
+            ? before.dailyBest.score
+            : 0
+          : before.endlessBest;
+        progress.set(recordEndless(before, score, result.saved, result.coins, daily));
+        const run: EndlessResultsParams = {
+          score,
+          best,
+          seconds: Math.floor(result.time),
+          saved: result.saved,
+          daily,
+        };
+        void nav.reset(SCENE.endlessResults, { ...run }, [{ name: SCENE.title, params: {} }]);
+        return;
       }
-      void nav.reset(SCENE.results, { levelId: level.id, result, report }, stackFor(level.id));
+      // Only campaign nights count towards progress (not debug demos).
+      let award: NightAward = { starCoins: 0, unlocks: [] };
+      if (placeOf(level.id)) {
+        const recorded = recordResult(progress.get(), level.id, settings.get().difficulty, result);
+        award = recorded.award;
+        progress.set(recorded.progress);
+      }
+      void nav.reset(
+        SCENE.results,
+        { levelId: level.id, result, report, award },
+        stackFor(level.id),
+      );
     },
     onQuit() {
       void nav.reset(SCENE.map, {}, [{ name: SCENE.title, params: {} }]);

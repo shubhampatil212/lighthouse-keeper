@@ -1,8 +1,25 @@
 /** Text on the menus, HUD, pause, results, shop, settings and credits. */
+import type { IslandBuildingId } from '../../data/types';
 import { plural } from './common';
 
 export type TipKey = 'precious' | 'pirate' | 'whirlpool' | 'iceberg' | 'dark' | 'late' | 'sweep';
-export type HintId = 'lost' | 'smuggler' | 'ferry' | 'pirate' | 'whirlpool' | 'lightning';
+export type HintId =
+  | 'lost'
+  | 'smuggler'
+  | 'ferry'
+  | 'pirate'
+  | 'whirlpool'
+  | 'lightning'
+  | 'cargo'
+  | 'sailboat'
+  | 'tugboat'
+  | 'iceberg'
+  | 'fog'
+  | 'waves'
+  | 'harbors'
+  | 'secondLamp'
+  | 'foghorn'
+  | 'flare';
 
 export const SCREENS = {
   // Boot
@@ -19,7 +36,7 @@ export const SCREENS = {
   titleSettings: 'Settings',
   titleCredits: 'Credits',
   endlessLocked: 'Finish Harbor Bay to open the endless watch.',
-  endlessSoon: 'The endless watch opens in a coming update.',
+  titleDaily: 'Daily sea',
 
   // Difficulty (first launch)
   difficultyTitle: 'How rough a sea?',
@@ -62,7 +79,25 @@ export const SCREENS = {
     pirate: 'A pirate! Shine on it to drive it away.',
     whirlpool: 'Light ships near the whirlpool so they steer round it.',
     lightning: 'Lightning soon. Look around while the sea is bright.',
+    cargo: 'Cargo ships turn slowly. Light them early so they have room.',
+    sailboat: 'Sailboats drift with the current when they’re in the dark.',
+    tugboat: 'Light a tugboat and it slows the dark ships near it.',
+    iceberg: 'Icebergs drift. Look again where you saw one last.',
+    fog: 'Thick fog shortens your beam. Ships inside it need you closer.',
+    waves: 'Storm waves push every ship, lit or not.',
+    harbors: 'Two harbors tonight. Lit ships steer for their own color.',
+    secondLamp: 'A second lamp! Tap the lamp button to steer the other one.',
+    foghorn: 'Tap the horn to slow every ship near the island.',
+    flare: 'Tap the flare to light the whole sea for a moment.',
   } satisfies Record<HintId, string>,
+
+  // Scripted tutorial (1-1)
+  tutorial: {
+    followLight: 'Ships follow your light.',
+    swingBeamFollow: 'Point where the light should go.',
+    swingBeamDrag: 'Drag to swing the beam.',
+    rocksSeen: 'Lit ships see the rocks.',
+  },
 
   // Pause
   pauseTitle: 'Paused',
@@ -77,6 +112,19 @@ export const SCREENS = {
   resultsCaught: 'Smugglers caught',
   resultsTime: 'Time',
   resultsCoins: 'Coins earned',
+  resultsStarCoins: 'Star bonus',
+  resultsUnlocked: 'Now open',
+  unlockRegion: (region: string) => `${region} on the sea chart`,
+  unlockEndless: 'The endless watch',
+  unlockBuilding: {
+    cottage: 'A cottage on the island',
+    dock: 'A dock for the supply boat',
+    chapel: 'A chapel on the hill',
+    market: 'A market by the quay',
+    festivalLights: 'Festival lights round the island',
+  } satisfies Record<IslandBuildingId, string>,
+  unlockDiary: 'A new page in your logbook',
+  unlockShop: (upgrade: string) => `${upgrade} in the harbor shop`,
   resultsNext: 'Next night',
   resultsRetry: 'Try again',
   resultsHarbor: 'Harbor',

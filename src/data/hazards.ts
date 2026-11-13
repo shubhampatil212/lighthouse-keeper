@@ -8,6 +8,9 @@ export const HAZARDS: HazardsConfig = {
   fog: {
     // "Shrink the beam's range by 35% where the beam passes through them."
     rangeFactor: 0.65,
+    // Found with the fairness test (phase 06): rocks inside or behind fog left ~1 s to react.
+    // The phase 04 fog levels pass with ~16 wu, so 10 is the floor.
+    rockClearance: 10,
   },
   iceberg: {
     radiusMin: 18,

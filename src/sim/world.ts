@@ -6,6 +6,7 @@
  */
 import { ABILITIES } from '../data/abilities';
 import { BEAM_FEEL } from '../data/beam';
+import { ENDLESS } from '../data/endless';
 import { HAZARDS } from '../data/hazards';
 import { SEA } from '../data/sea';
 import type {
@@ -17,19 +18,19 @@ import type {
   Upgrades,
 } from '../data/types';
 import { coolDown, fireFlare, soundFoghorn, stepLamps, type AbilityContext } from './abilities';
-import { lightAt, type LightOrigin, type LightSources } from './beam';
+import { canReach, lightAt, type LightOrigin, type LightSources } from './beam';
 import { stepTows } from './coastGuard';
+import { stepWatch } from './endless';
 import type { Emit, FailReason, LevelOutcome, SimEvent } from './events';
 import type { Intents } from './intents';
 import { spawnPirate, stepPirates } from './pirates';
 import { driftIcebergs, updateReefMemory } from './reefs';
 import { createRng } from './rng';
-import { allShipsResolved, failReason } from './rules';
 import { spawnShip } from './ships';
 import { stepLightning, stepWaves } from './storms';
 import { ringBuoys, towWithTugs } from './tugs';
 import { addHazard, clearHazard } from './worldEdit';
-import { endNight, lightSourcesOf, recordWreck, stepAllShips } from './worldNight';
+import { endNight, lightSourcesOf, recordWreck, settleNight, stepAllShips } from './worldNight';
 import {
   createSetup,
   startState,
@@ -232,6 +233,27 @@ function runWorld(setup: WorldSetup, state: WorldState): World {
         dt,
       );
       spawnDue();
+      if (state.watch && setup.watch) {
+        stepWatch(
+          state.watch,
+          setup.watch,
+          {
+            time: state.time,
+            rocks: state.rocks,
+            ships: state.ships,
+            whirlpools: state.whirlpools,
+            launch: (type, angle) => {
+              launch(type, angle, 0);
+            },
+            addHazard: (def) => {
+              addHazard(state, def, withHazardRng, launchPirate);
+            },
+          },
+          ENDLESS,
+          SEA,
+          setup.difficulty,
+        );
+      }
       towWithTugs(state.ships, setup.ships.tug, tick, emit);
       stepShips(lightOf, dt);
       ringBuoys(state.ships, setup.buoys, tick, emit);
@@ -251,12 +273,13 @@ function runWorld(setup: WorldSetup, state: WorldState): World {
         state.ships = state.ships.filter((s) => !sunk.has(s));
       }
       updateReefMemory(state.rocks, lit, setup.difficulty.reefMemory, dt, tick, emit);
+      setup.objective.observe(state.objective, {
+        ships: state.ships,
+        reachable: (x, y) => canReach(light, x, y),
+        dt,
+      });
 
-      if (setup.endless) return;
-      const reason = failReason(state.wrecked, setup.difficulty.wreckAllowance, state.preciousLost);
-      const resolved = state.saved + state.wrecked + state.caught + state.escaped;
-      if (reason) end('failed', reason);
-      else if (allShipsResolved(setup.spawns.length, resolved)) end('won', null);
+      settleNight(setup, state, end);
     },
     drainEvents() {
       const events = state.events;

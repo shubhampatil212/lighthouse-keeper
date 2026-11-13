@@ -7,4 +7,5 @@ export const PLAY: PlayConfig = {
   // GDD §7: prompts "never block play for more than about 2 seconds"; they don't block at all,
   // and stay up a little longer so there's time to read them.
   hintSeconds: 3.5,
+  waitPromptSeconds: 8,
 };

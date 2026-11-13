@@ -2,15 +2,15 @@
 import type { RegionId, ShipTypeId } from '../../data/types';
 import type { IntroId, SeaFeatureId } from '../../data/uiTypes';
 
-/** The harbor master's line for each night (phase 06 may rewrite them with the levels). */
+/** The harbor master's line for each night. */
 const BRIEFINGS: Readonly<Record<string, string>> = {
-  '1-1': 'Evening, keeper. One boat out tonight. Show her the way in, that’s all.',
+  '1-1': 'Evening, keeper. A few boats out tonight. Show them the way in, that’s all.',
   '1-2': 'Two cargo ships due. Slow old tubs: they need room to turn.',
   '1-3': 'They’re coming in pairs tonight, from both sides at once.',
   '1-4': 'Breeze off the shore. The sailboats will feel it most.',
   '1-5': 'Market day tomorrow. Everyone wants in before dawn.',
   '1-6': 'Storm clouds over the bay. Keep them all off the rocks.',
-  '2-1': 'Ice fog up north. If the lamp can’t reach them, the horn will.',
+  '2-1': 'They’re coming down from the north in threes. The horn will hold them back.',
   '2-2': 'The bergs are moving. A rock that drifts is still a rock.',
   '2-3': 'The ferry runs tonight. Forty souls aboard. Don’t lose her.',
   '2-4': 'A white wall out east. Your beam will fall short inside it.',

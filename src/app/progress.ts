@@ -3,7 +3,7 @@
  * For now it's kept in memory only (placeholder data, see progressPresets.ts); phase 06 finishes
  * the rules and phase 08 saves it.
  */
-import { CAMPAIGN, SHOP } from '../data';
+import { CAMPAIGN, DIFFICULTIES, SHOP, STAR_COINS } from '../data';
 import type { DifficultyId, IslandBuildingId, RegionId, Upgrades } from '../data/types';
 import type { ShopUpgradeDef, UpgradeId } from '../data/uiTypes';
 import type { LevelResult } from '../sim/events';
@@ -22,6 +22,8 @@ export interface Progress {
   buoys: Readonly<Record<string, readonly number[]>>;
   shipsSaved: number;
   endlessBest: number;
+  /** Best daily-sea score, and the day it was for (a new day starts fresh). */
+  dailyBest: { date: string; score: number } | null;
   /** The level last played, so "Continue" and the map know where the keeper is. */
   lastLevel: string | null;
 }
@@ -42,6 +44,7 @@ export const NEW_PROGRESS: Progress = {
   buoys: {},
   shipsSaved: 0,
   endlessBest: 0,
+  dailyBest: null,
   lastLevel: null,
 };
 
@@ -108,21 +111,103 @@ export function currentLevelId(p: Progress): string {
   return next?.id ?? p.lastLevel ?? ALL_LEVELS[0]?.id ?? '1-1';
 }
 
+/** Something a night opened up, for the results screen. */
+export type Unlock =
+  | { kind: 'region'; region: RegionId }
+  | { kind: 'endless' }
+  | { kind: 'building'; building: IslandBuildingId }
+  | { kind: 'diary'; region: RegionId }
+  | { kind: 'shop'; upgrade: UpgradeId };
+
+/** What a night paid beyond its ships, and what it opened up. */
+export interface NightAward {
+  /** Coins for stars earned for the first time on this level at this difficulty. */
+  starCoins: number;
+  unlocks: Unlock[];
+}
+
+/** Everything newly open in `after` that wasn't in `before`. */
+export function unlocksBetween(before: Progress, after: Progress): Unlock[] {
+  const unlocks: Unlock[] = [];
+  CAMPAIGN.forEach((region, i) => {
+    if (!isRegionUnlocked(before, i) && isRegionUnlocked(after, i)) {
+      unlocks.push({ kind: 'region', region: region.id });
+    }
+  });
+  if (!isEndlessUnlocked(before) && isEndlessUnlocked(after)) unlocks.push({ kind: 'endless' });
+  CAMPAIGN.forEach((region, i) => {
+    if (!isRegionComplete(before, i) && isRegionComplete(after, i)) {
+      unlocks.push({ kind: 'building', building: region.building });
+      unlocks.push({ kind: 'diary', region: region.id });
+    }
+  });
+  for (const def of SHOP.upgrades) {
+    if (!isUpgradeForSale(before, def) && isUpgradeForSale(after, def)) {
+      unlocks.push({ kind: 'shop', upgrade: def.id });
+    }
+  }
+  return unlocks;
+}
+
+/**
+ * Records a finished campaign night: best stars (per difficulty), coins for its ships plus a bonus
+ * for each new star, ships saved, and what it unlocked.
+ */
 export function recordResult(
   p: Progress,
   levelId: string,
   difficulty: DifficultyId,
   result: LevelResult,
-): Progress {
+): { progress: Progress; award: NightAward } {
   const record = p.stars[levelId] ?? {};
-  const best = Math.max(record[difficulty] ?? 0, result.stars);
-  return {
+  const before = record[difficulty] ?? 0;
+  const best = Math.max(before, result.stars);
+  const newStars = best - before;
+  const starCoins = Math.round(
+    newStars * STAR_COINS.perNewStar * DIFFICULTIES[difficulty].coinReward,
+  );
+  const progress: Progress = {
     ...p,
-    coins: p.coins + result.coins,
+    coins: p.coins + result.coins + starCoins,
     shipsSaved: p.shipsSaved + result.saved,
     stars: { ...p.stars, [levelId]: { ...record, [difficulty]: best } },
     lastLevel: levelId,
   };
+  return { progress, award: { starCoins, unlocks: unlocksBetween(p, progress) } };
+}
+
+/** Records an endless run's score (and the daily best, for a daily sea). */
+export function recordEndless(
+  p: Progress,
+  score: number,
+  saved: number,
+  coins: number,
+  daily: string | null,
+): Progress {
+  const dailyBest =
+    daily === null
+      ? p.dailyBest
+      : p.dailyBest?.date === daily && p.dailyBest.score >= score
+        ? p.dailyBest
+        : {
+            date: daily,
+            score: Math.max(score, p.dailyBest?.date === daily ? p.dailyBest.score : 0),
+          };
+  return {
+    ...p,
+    coins: p.coins + coins,
+    shipsSaved: p.shipsSaved + saved,
+    endlessBest: Math.max(p.endlessBest, score),
+    dailyBest,
+  };
+}
+
+/** Debug: every level cleared with three stars on this difficulty (coins and upgrades kept). */
+export function unlockAll(p: Progress, difficulty: DifficultyId): Progress {
+  const stars = Object.fromEntries(
+    ALL_LEVELS.map((l): [string, StarRecord] => [l.id, { ...p.stars[l.id], [difficulty]: 3 }]),
+  );
+  return { ...p, started: true, stars };
 }
 
 // ---- Shop ----

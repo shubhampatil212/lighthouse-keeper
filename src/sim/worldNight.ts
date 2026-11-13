@@ -8,7 +8,7 @@ import { HAZARDS } from '../data/hazards';
 import type { LampLight, LightOrigin, LightSources } from './beam';
 import { launchTow } from './coastGuard';
 import type { Emit, FailReason, LevelOutcome, LevelResult, WreckCause } from './events';
-import { starsFor } from './rules';
+import { allShipsResolved, failReason, starsFor } from './rules';
 import { stepShip, type SeaForces, type Ship } from './ships';
 import type { WorldSetup, WorldState } from './worldSetup';
 
@@ -45,7 +45,7 @@ export function endNight(
   outcome: LevelOutcome,
   reason: FailReason | null,
 ): void {
-  const bonusMet = setup.objective.isMet(state.objective);
+  const bonusMet = setup.objective.isMet(state.objective, state.time);
   const result: LevelResult = {
     outcome,
     failReason: reason,
@@ -62,6 +62,22 @@ export function endNight(
   state.status = outcome;
   state.result = result;
   emit({ type: 'levelEnded', tick: state.tick, result });
+}
+
+/**
+ * Ends the night once it's decided: too many wrecks (or a precious ship) fails it; every ship
+ * resolved wins it. The sandbox and the backdrop never end; an endless watch ends only by failing.
+ */
+export function settleNight(
+  setup: WorldSetup,
+  state: WorldState,
+  end: (outcome: LevelOutcome, reason: FailReason | null) => void,
+): void {
+  if (setup.endless && !setup.watch) return;
+  const reason = failReason(state.wrecked, setup.difficulty.wreckAllowance, state.preciousLost);
+  const resolved = state.saved + state.wrecked + state.caught + state.escaped;
+  if (reason) end('failed', reason);
+  else if (!setup.watch && allShipsResolved(setup.spawns.length, resolved)) end('won', null);
 }
 
 /** Counts a lost ship (a precious one fails the night). */

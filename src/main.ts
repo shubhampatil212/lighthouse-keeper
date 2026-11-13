@@ -13,7 +13,7 @@ import { settingsFromAddress } from './app/debugParams';
 import { createFadeTransition } from './app/fade';
 import { createGame } from './app/game';
 import { createGameLoop } from './app/gameLoop';
-import { islandBuildings } from './app/progress';
+import { islandBuildings, unlockAll } from './app/progress';
 import { progressPreset } from './app/progressPresets';
 import { createSceneManager } from './app/sceneManager';
 import { screenJump } from './app/screenJump';
@@ -43,6 +43,7 @@ import { SCENE } from './scenes/context';
 import { createPlayScene, type PlayPrefs } from './scenes/play';
 import { createSandboxScene } from './scenes/sandbox';
 import { createBootScreen } from './ui/bootScreen';
+import { createDebugCampaign } from './ui/debugCampaign';
 import { createDebugPanel, DEFAULT_DEBUG_SETTINGS, type DebugSettings } from './ui/debugPanel';
 import { createFpsMeter } from './ui/fpsMeter';
 import { STRINGS } from './ui/strings';
@@ -207,6 +208,16 @@ async function boot(): Promise<void> {
       play.restart(newSeed);
     },
   });
+  debugPanel.addSection(
+    createDebugCampaign({
+      unlockAll: () => {
+        progress.update((p) => unlockAll(p, settings.get().difficulty));
+      },
+      jump: (levelId) => {
+        game.ctx.startNight(levelId);
+      },
+    }),
+  );
   debugPanel.setRenderer(app.renderer.name);
   play.attachDebugPanel(debugPanel);
   showQuality();

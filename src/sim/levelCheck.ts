@@ -1,14 +1,87 @@
 /** Checks a level's data against the fairness and layout rules. Returns a list of problems (empty = fine). */
 import { ABILITIES } from '../data/abilities';
 import { BEAM } from '../data/beam';
+import { DIFFICULTIES } from '../data/difficulties';
 import { HAZARDS } from '../data/hazards';
 import { ISLAND } from '../data/island';
 import { SEA } from '../data/sea';
+import { SHIP_BEHAVIOR } from '../data/shipBehavior';
 import { SHIP_TYPES } from '../data/ships';
 import type { LevelDef } from '../data/types';
+import { distanceToBand, throughFog, type FogBand } from './fog';
 import { buildRocks } from './reefs';
 
 const round = (n: number): number => Math.round(n);
+
+/** The bonus objective must be possible with the ships, hazards and abilities the level has. */
+function checkBonus(level: LevelDef): string[] {
+  const bonus = level.bonus;
+  const count = (type: string): number => level.ships.filter((s) => s.type === type).length;
+  switch (bonus.kind) {
+    case 'saveAllOfType':
+      return count(bonus.type) > 0
+        ? []
+        : [`The bonus asks to save every ${bonus.type}, but none are scheduled.`];
+    case 'catchSmugglers': {
+      const wanted = bonus.count === 'all' ? 1 : bonus.count;
+      return count('smuggler') >= wanted && wanted > 0
+        ? []
+        : ['The bonus asks for more smugglers than the level sends.'];
+    }
+    case 'driveOffPirates':
+      return level.hazards.some((h) => h.kind === 'pirate') && bonus.count > 0
+        ? []
+        : ['The bonus asks to drive off pirates, but none are scheduled.'];
+    case 'savedTogether':
+      return bonus.count <= level.ships.length && bonus.count > 1 && bonus.within > 0
+        ? []
+        : ['The "ships home together" bonus is impossible with this many ships.'];
+    case 'noLongDark':
+    case 'finishUnder':
+      return bonus.seconds > 0 ? [] : ['The bonus needs a positive number of seconds.'];
+    case 'noAbility':
+    case 'none':
+      return [];
+  }
+}
+
+/** No current (on any difficulty) may hold a drifting ship out at sea for good. */
+function checkCurrent(level: LevelDef): string[] {
+  const problems: string[] = [];
+  const types = [...new Set(level.ships.map((s) => s.type))];
+  for (const [id, d] of Object.entries(DIFFICULTIES)) {
+    for (const type of types) {
+      const ship = SHIP_TYPES[type];
+      const push = level.current.strength * d.currentStrength * ship.windFactor;
+      const drift = ship.speed * d.shipSpeed * SHIP_BEHAVIOR.darkSpeedFactor;
+      if (push > drift * SEA.currentMaxShare) {
+        problems.push(
+          `On ${id}, the current is too strong for a drifting ${type} to make headway.`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
+/** Fairness: a rock may not hide behind fog, and keeps open water between itself and any band. */
+function checkFog(
+  fog: readonly FogBand[],
+  lamps: readonly { x: number; y: number }[],
+  rock: { x: number; y: number; r: number },
+  where: string,
+): string[] {
+  if (fog.length === 0) return [];
+  const problems: string[] = [];
+  const clear = lamps.some((lamp) => !throughFog(fog, lamp.x, lamp.y, rock.x, rock.y));
+  if (!clear) problems.push(`${where} sits behind fog.`);
+  for (const band of fog) {
+    if (distanceToBand(band, rock.x, rock.y) - rock.r < HAZARDS.fog.rockClearance) {
+      problems.push(`${where} is too close to a fog band.`);
+    }
+  }
+  return problems;
+}
 
 export function validateLevel(level: LevelDef): string[] {
   const problems: string[] = [];
@@ -22,15 +95,11 @@ export function validateLevel(level: LevelDef): string[] {
       problems.push(`Ship ${i} is bound for harbor ${harbor}, which doesn't exist.`);
     }
   });
-  if (level.bonus.kind === 'saveAllOfType') {
-    const type = level.bonus.type;
-    if (!level.ships.some((ship) => ship.type === type)) {
-      problems.push(`The bonus asks to save every ${type}, but none are scheduled.`);
-    }
-  }
+  problems.push(...checkBonus(level), ...checkCurrent(level));
 
   // Fairness: everything that can sink a ship must sit well inside a lamp's un-upgraded reach.
   const lamps = [{ x: 0, y: 0 }, ...(level.secondLamp ? [level.secondLamp] : [])];
+  const fog: FogBand[] = level.hazards.flatMap((h) => (h.kind === 'fogBand' ? [h] : []));
   const waves = level.hazards.some((h) => h.kind === 'stormWaves');
   const limit = BEAM.range - SEA.reefRangeMargin - (waves ? HAZARDS.stormWaves.extraReefMargin : 0);
   const inReach = (x: number, y: number, r: number): boolean =>
@@ -51,6 +120,7 @@ export function validateLevel(level: LevelDef): string[] {
       problems.push(`${where} is too close to the edge of the beam's range.`);
     }
     if (d + rock.r >= SEA.spawnRadius) problems.push(`${where} reaches the spawn ring.`);
+    if (rock.kind === 'rock') problems.push(...checkFog(fog, lamps, rock, where));
     if (rock.kind === 'iceberg') {
       // Icebergs bounce inside the zone between the harbor and the reef limit.
       if (d - rock.r < SEA.defaultHarborRadius + HAZARDS.iceberg.harborGap) {

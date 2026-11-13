@@ -63,3 +63,15 @@ export function throughFog(
 ): boolean {
   return bands.some((band) => fogEntry(band, x0, y0, x1, y1) !== null);
 }
+
+/** Distance from (x, y) to the nearest point of the band (0 inside it). */
+export function distanceToBand(band: FogBand, x: number, y: number): number {
+  const cos = Math.cos(band.angle);
+  const sin = Math.sin(band.angle);
+  const u = (x - band.x) * cos + (y - band.y) * sin;
+  const v = -(x - band.x) * sin + (y - band.y) * cos;
+  return Math.hypot(
+    Math.max(0, Math.abs(u) - band.length / 2),
+    Math.max(0, Math.abs(v) - band.width / 2),
+  );
+}

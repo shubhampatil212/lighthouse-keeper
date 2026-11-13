@@ -6,6 +6,7 @@ export * from './abilities';
 export * from './angle';
 export * from './beam';
 export * from './coastGuard';
+export * from './endless';
 export * from './events';
 export * from './fog';
 export * from './intents';

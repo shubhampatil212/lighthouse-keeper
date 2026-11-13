@@ -23,8 +23,15 @@ export function createTitleScene(ctx: GameContext): Scene {
 
     // Locked: still focusable, so the hint can be read; tapping it explains how to open it.
     const endless = button(STRINGS.titleEndless, () => {
-      ctx.toast(endlessOpen ? STRINGS.endlessSoon : STRINGS.endlessLocked);
+      if (endlessOpen) ctx.startWatch(false);
+      else ctx.toast(STRINGS.endlessLocked);
     });
+    // The daily sea: the same sea for every keeper today. Shown once the endless watch is open.
+    const daily = endlessOpen
+      ? button(STRINGS.titleDaily, () => {
+          ctx.startWatch(true);
+        })
+      : null;
     if (!endlessOpen) {
       endless.classList.add('is-locked');
       endless.setAttribute('aria-describedby', 'endless-hint');
@@ -44,6 +51,7 @@ export function createTitleScene(ctx: GameContext): Scene {
         { className: 'menu-column', attrs: { 'aria-label': STRINGS.titleMenuLabel } },
         begin,
         endless,
+        daily,
         endlessOpen
           ? null
           : h('p', {

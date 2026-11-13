@@ -3,6 +3,7 @@
  * (docs/SCREENS.md "Results"). A failed night gets a gentle tip based on what went wrong.
  */
 import { levelDef, nextLevelId, placeOf } from '../app/campaign';
+import type { NightAward, Unlock } from '../app/progress';
 import type { Scene } from '../app/sceneManager';
 import { UI_FEEL } from '../data';
 import type { LevelResult } from '../sim/events';
@@ -18,6 +19,23 @@ export interface ResultsParams {
   levelId: string;
   result: LevelResult;
   report: NightReport;
+  /** Star coins and unlocks (none for a debug night). */
+  award?: NightAward;
+}
+
+function unlockText(unlock: Unlock): string {
+  switch (unlock.kind) {
+    case 'region':
+      return STRINGS.unlockRegion(STRINGS.regionName[unlock.region]);
+    case 'endless':
+      return STRINGS.unlockEndless;
+    case 'building':
+      return STRINGS.unlockBuilding[unlock.building];
+    case 'diary':
+      return STRINGS.unlockDiary;
+    case 'shop':
+      return STRINGS.unlockShop(STRINGS.upgradeName[unlock.upgrade]);
+  }
 }
 
 const minutes = (seconds: number): string =>
@@ -25,7 +43,9 @@ const minutes = (seconds: number): string =>
 
 export function createResultsScene(ctx: GameContext): Scene {
   return menuScene(ctx, (params) => {
-    const { levelId, result, report } = params as unknown as ResultsParams;
+    const { levelId, result, report, award } = params as unknown as ResultsParams;
+    const starCoins = award?.starCoins ?? 0;
+    const unlocks = award?.unlocks ?? [];
     const level = levelDef(levelId);
     const won = result.outcome === 'won';
     const calm = reducedMotion();
@@ -71,9 +91,20 @@ export function createResultsScene(ctx: GameContext): Scene {
             textContent: result.bonusMet ? STRINGS.bonusDone : STRINGS.bonusMissed,
           })
         : null,
+      starCoins > 0 ? h('dt', { textContent: STRINGS.resultsStarCoins }) : null,
+      starCoins > 0 ? h('dd', {}, coinCounter(starCoins).element) : null,
       h('dt', { textContent: STRINGS.resultsCoins }),
-      h('dd', {}, coinCounter(result.coins).element),
+      h('dd', {}, coinCounter(result.coins + starCoins).element),
     );
+    const opened =
+      unlocks.length > 0
+        ? h(
+            'div',
+            { className: 'results__unlocks' },
+            h('p', { className: 'eyebrow', textContent: STRINGS.resultsUnlocked }),
+            h('ul', {}, ...unlocks.map((u) => h('li', { textContent: unlockText(u) }))),
+          )
+        : null;
 
     const actions = won
       ? [
@@ -132,6 +163,7 @@ export function createResultsScene(ctx: GameContext): Scene {
                 textContent: STRINGS.tip[pickTip(report, result.failReason)],
               }),
           stats,
+          opened,
         ),
         h('div', { className: 'results__actions' }, ...actions),
       ),

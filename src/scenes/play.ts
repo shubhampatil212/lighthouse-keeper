@@ -3,6 +3,7 @@
  * events to drawing, the HUD's prompts and the night log. When the night ends it reports to the
  * game (which opens Results); back or Esc opens Pause.
  */
+import { isWatchId } from '../app/endless';
 import type { Viewport } from '../app/viewport';
 import {
   ABILITIES,
@@ -13,12 +14,12 @@ import {
   SHIP_TYPES,
   VIEWPORT,
 } from '../data';
-import type { LevelDef, Upgrades } from '../data/types';
+import type { LevelDef, TutorialPromptId, Upgrades, WatchDef } from '../data/types';
 import { createInputController, type InputController } from '../input/controller';
 import { createSafeRing, drawSafeRing } from '../render/debug/safeRing';
 import { createNightRenderer, type NightRenderer } from '../render/Renderer';
 import { foghornCooldown } from '../sim/abilities';
-import { createWorld, type World } from '../sim/world';
+import { createWorld, type World, type WorldOptions } from '../sim/world';
 import type { DebugPanel } from '../ui/debugPanel';
 import { createHud } from '../ui/hud';
 import { createPauseMenu } from '../ui/pauseMenu';
@@ -27,10 +28,14 @@ import { createNightLog, type NightLog } from './nightLog';
 import type { PlayScene, PlaySceneOptions } from './playTypes';
 import { regionFor, weatherFor } from './playLook';
 import { createPlayHints } from './playHints';
+import { createTutorial, type Tutorial } from './tutorial';
 
 export type { PlayHooks, PlayPrefs, PlayScene, PlaySceneOptions } from './playTypes';
 
 const NO_ACTIONS = { foghorn: false, flare: false, switchLamp: false };
+
+/** The HUD's level code ("2-3"); an endless watch shows only its name. */
+const levelCode = (level: LevelDef): string => (isWatchId(level.id) ? '' : level.id);
 
 /** A fresh seed for a new attempt. Randomness is fine here: the simulation only ever sees the seed. */
 const randomSeed = (): number => Math.floor(Math.random() * 0x100000000);
@@ -40,7 +45,9 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   let level = options.level;
   let upgrades: Upgrades = options.upgrades ?? NO_UPGRADES;
   let prefs = options.prefs;
-  const worldOptions = { endless: options.endless ?? false };
+  let worldOptions: WorldOptions = { endless: options.endless ?? false };
+  /** A daily sea keeps its seed on every attempt. */
+  let fixedSeed: number | null = null;
   const safeRing = options.showSafeRing ? createSafeRing() : null;
   const hud = createHud(
     () => {
@@ -65,6 +72,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   let seed = options.seed ?? randomSeed();
   let world: World = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
   let log: NightLog = createNightLog(1 / 60);
+  let tutorial: Tutorial | null = null;
   let view: NightRenderer | null = null;
   let input: InputController | null = null;
   let debugPanel: DebugPanel | null = null;
@@ -113,10 +121,13 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   }
 
   function restart(newSeed: boolean): void {
-    if (newSeed) seed = randomSeed();
+    if (fixedSeed !== null) seed = fixedSeed;
+    else if (newSeed) seed = randomSeed();
     world = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
     log = createNightLog(1 / 60);
+    tutorial = level.tutorial && prefs.tutorialPrompts ? createTutorial(level.tutorial) : null;
     hints.clear();
+    hints.onNightStart(level, world.setup.upgrades);
     hud.prompt(null);
     setPaused(false);
     endIn = null;
@@ -126,11 +137,18 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   const load = (nextLevel: LevelDef, nextUpgrades: Upgrades): void => {
     level = nextLevel;
     upgrades = nextUpgrades;
-    hud.setLevel(nextLevel.id, nextLevel.name);
+    hud.setLevel(levelCode(nextLevel), nextLevel.name);
     applyLook();
     restart(false);
   };
-  hud.setLevel(level.id, level.name);
+  hud.setLevel(levelCode(level), level.name);
+
+  const tutorialText = (id: TutorialPromptId): string => {
+    if (id !== 'swingBeam') return STRINGS.tutorial[id];
+    return settings.style === 'drag'
+      ? STRINGS.tutorial.swingBeamDrag
+      : STRINGS.tutorial.swingBeamFollow;
+  };
 
   return {
     get settings() {
@@ -174,7 +192,10 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       if (params.level) {
         level = params.level as LevelDef;
         upgrades = (params.upgrades as Upgrades | undefined) ?? NO_UPGRADES;
-        hud.setLevel(level.id, level.name);
+        const watch = params.watch as WatchDef | undefined;
+        worldOptions = watch ? { watch } : { endless: options.endless ?? false };
+        fixedSeed = (params.seed as number | null | undefined) ?? null;
+        hud.setLevel(levelCode(level), level.name);
       }
       view = createNightRenderer(options.pixi, layers, options.art, SHIP_TYPES);
       view.setQuality(quality);
@@ -214,6 +235,9 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       };
       if (intents.pause) setPaused(!paused);
       if (paused) return;
+      // The tutorial may swing the beam for the player for a moment.
+      const lesson = tutorial?.step(dt) ?? null;
+      if (lesson?.steer != null) intents.aimAngle = lesson.steer;
 
       // Slow motion and fast forward (sandbox): run 0..n fixed steps for each real one.
       stepDebt += timeScale;
@@ -228,11 +252,13 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
           view?.onEvent(event, world);
           log.onEvent(event);
           hints.onEvent(event);
+          tutorial?.onEvent(event);
           if (event.type === 'levelEnded') endIn = PLAY.endCardDelay;
         }
       }
       const hint = hints.step(dt);
-      hud.prompt(hint ? STRINGS.hint[hint] : null);
+      const lessonText = lesson?.prompt ? tutorialText(lesson.prompt) : null;
+      hud.prompt(lessonText ?? (hint ? STRINGS.hint[hint] : null));
       if (endIn !== null) {
         endIn -= dt;
         if (endIn <= 0 && world.state.result) {

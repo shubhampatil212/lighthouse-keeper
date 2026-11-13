@@ -7,13 +7,23 @@ import { BEAM, BEAM_FEEL, BEAM_UPGRADES } from '../data/beam';
 import { DIFFICULTIES } from '../data/difficulties';
 import { HAZARDS } from '../data/hazards';
 import { ISLAND } from '../data/island';
+import { LOOP } from '../data/loop';
 import { SEA } from '../data/sea';
 import { SHIP_BEHAVIOR } from '../data/shipBehavior';
 import { SHIP_TYPES, SMUGGLER, TUG } from '../data/ships';
-import type { DifficultyConfig, DifficultyId, HarborDef, LevelDef, Upgrades } from '../data/types';
+import { ENDLESS } from '../data/endless';
+import type {
+  DifficultyConfig,
+  DifficultyId,
+  HarborDef,
+  LevelDef,
+  Upgrades,
+  WatchDef,
+} from '../data/types';
 import { startAbilities, type AbilityState, type LampState } from './abilities';
 import { beamStats, type BeamState, type BeamStats, type BuoyLight } from './beam';
 import type { Tow } from './coastGuard';
+import { startWatch, type WatchState } from './endless';
 import type { LevelResult, SimEvent } from './events';
 import type { FogBand } from './fog';
 import { createObjective, type BonusObjective, type ObjectiveProgress } from './objectives';
@@ -27,8 +37,10 @@ import { startLightning, startWaves, type LightningState, type WavesState } from
 export type WorldStatus = 'playing' | 'won' | 'failed';
 
 export interface WorldOptions {
-  /** The night never ends on its own (the sandbox, and later Endless watch). */
+  /** The night never ends on its own (the sandbox and the menu backdrop). */
   endless?: boolean;
+  /** An endless watch: ships, reefs and hazards keep coming until wrecks pass the allowance. */
+  watch?: WatchDef;
 }
 
 /** Everything that changes during a night. Plain data only, so a night can be copied and replayed. */
@@ -71,6 +83,8 @@ export interface WorldState {
   coins: number;
   preciousLost: boolean;
   objective: ObjectiveProgress;
+  /** The endless watch's pace and what's still to come; null on a campaign night. */
+  watch: WatchState | null;
   result: LevelResult | null;
   /** Events not yet collected by drainEvents(). */
   events: SimEvent[];
@@ -91,20 +105,34 @@ export interface WorldSetup {
   ships: ShipRules;
   pirates: PirateRules;
   objective: BonusObjective;
+  /** True when the night doesn't end with its last ship (sandbox, backdrop, endless watch). */
   endless: boolean;
+  watch: WatchDef | null;
 }
 
 /** The hazard stream's seed: derived from the night's seed but independent of the ship stream. */
 const hazardSeed = (seed: number): number => (seed ^ 0x5bd1e995) >>> 0;
 
+/** A tutorial night lends its new ability: the night uses the better of the loan and what's owned. */
+function withLoan(upgrades: Upgrades, level: LevelDef): Upgrades {
+  const loan = level.loan;
+  if (!loan) return upgrades;
+  return {
+    ...upgrades,
+    foghorn: Math.max(upgrades.foghorn, loan.foghorn ?? 0),
+    flares: Math.max(upgrades.flares, loan.flares ?? 0),
+  };
+}
+
 export function createSetup(
   level: LevelDef,
   difficultyId: DifficultyId,
-  upgrades: Upgrades,
+  owned: Upgrades,
   seed: number,
   options: WorldOptions = {},
 ): { setup: WorldSetup; rngState: number } {
   const difficulty = DIFFICULTIES[difficultyId];
+  const upgrades = withLoan(owned, level);
   const rng = createRng(seed);
   const spawns = planSpawns(level, difficulty, SEA, rng);
   const harbors = level.harbors ?? [{ x: 0, y: 0, radius: SEA.defaultHarborRadius }];
@@ -145,8 +173,9 @@ export function createSetup(
       types: SHIP_TYPES,
       huntLimit: beam.range,
     },
-    objective: createObjective(level.bonus, level),
-    endless: options.endless ?? false,
+    objective: createObjective(level.bonus, level, difficulty, LOOP.stepHz),
+    endless: (options.endless ?? false) || options.watch !== undefined,
+    watch: options.watch ?? null,
   };
   return { setup, rngState: rng.state };
 }
@@ -161,7 +190,7 @@ export function startState(setup: WorldSetup, seed: number, rngState: number): W
   const waves = hazards.some((h) => h.kind === 'stormWaves')
     ? startWaves(hazardRng, HAZARDS.stormWaves)
     : null;
-  const start = BEAM_FEEL.startAngle;
+  const start = level.beamStart ?? BEAM_FEEL.startAngle;
   return {
     seed,
     tick: 0,
@@ -198,6 +227,7 @@ export function startState(setup: WorldSetup, seed: number, rngState: number): W
     coins: 0,
     preciousLost: false,
     objective: setup.objective.start(),
+    watch: setup.watch ? startWatch(setup.watch, seed, ENDLESS) : null,
     result: null,
     events: [],
   };

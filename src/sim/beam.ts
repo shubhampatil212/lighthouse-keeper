@@ -119,6 +119,17 @@ export function lightAt(light: LightSources, x: number, y: number): LightOrigin 
   return null;
 }
 
+/** True if some lamp could light (x, y) by pointing at it (fog shortens the reach), or a buoy does. */
+export function canReach(light: LightSources, x: number, y: number): boolean {
+  for (const lamp of light.lamps) {
+    const d = Math.hypot(x - lamp.x, y - lamp.y);
+    if (d > light.stats.range) continue;
+    const foggy = light.fog.length > 0 && throughFog(light.fog, lamp.x, lamp.y, x, y);
+    if (!foggy || d <= light.stats.range * light.fogRangeFactor) return true;
+  }
+  return light.buoys.some((buoy) => Math.hypot(x - buoy.x, y - buoy.y) < buoy.radius);
+}
+
 export function isLit(light: LightSources, x: number, y: number): boolean {
   return lightAt(light, x, y) !== null;
 }

@@ -10,7 +10,7 @@ Claude Code updates this file at the end of every phase or session.
 | 03 Rendering & visuals | done (owner accepted 2026-11-13) | Real 2.5D look: light-map darkness, water shader, beam shaft and bloom, low-poly reefs, six ship looks, island and buildings, fog/rain/snow, effects, region tints, Low/Medium/High/Auto |
 | 04 Ships & hazards | done (awaiting owner check) | Sailboat, ferry, tugboat, smuggler + coast guard; fog bands, icebergs, lightning, storm waves, whirlpool, pirates; second harbor with colorblind shapes; foghorn, flares, second lamp, bell buoy chime; sandbox at #sandbox; demo nights; fairness passes with every hazard |
 | 05 UI & screens | done (awaiting owner check) | Every screen from SCREENS.md connected: boot, title, first-launch difficulty, sea chart, level select, briefing, real HUD, pause, results with dawn and tips, harbor shop with buoy chart, logbook with diary, settings, credits, endless results. UI kit, back/Esc handling, live sea behind menus. Placeholder progress until phases 06/08 |
-| 06 Levels & campaign | not started | |
+| 06 Levels & campaign | done (awaiting owner check) | All 30 levels, 1-1 tutorial and new-mechanic prompts, bot play-tester and balance report, star coins and unlock notes, endless watch and daily sea, debug unlock/jump |
 | 07 Audio | not started | |
 | 08 Settings, saves, accessibility | not started | |
 | 09 Polish & mobile | not started | |
@@ -104,17 +104,45 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Transitions are 250 ms** (SCREENS.md; it was 220) with a fog band sweeping across; with reduced motion, just the fade.
 - **2026-11-13 · Debug shortcuts:** `?level=` or `?seed=` still start a night at once (Title sits behind it), `?screen=<name>` opens any screen (`&night=2-3`, `&region=stormStrait`, `&fail` for a lost night's results), `#sandbox` as before.
 - **2026-11-13 · No new tests this phase** (the owner will write tests at the end of the project). The phase prompt's Playwright walk (Title → Map → Level → Play → Pause → Quit) was run by hand with a script instead, along with a keyboard-only walk; both pass with no console errors. The deferred tests are listed under Known issues.
+- **2026-11-13 · Phase 06: levels are written by compass bearing** (0° = north, clockwise) with helpers in `src/data/levels/shape.ts` (`at`, `reef`, `wall`, `fleet`), so each file reads like a chart. The simulation still uses radians.
+- **2026-11-13 · New bonus objectives** (CONTENT.md §6): no ship in the dark too long, finish within a time, ships home together, catch smugglers, never use an ability, drive pirates away. "No ship in the dark" only counts while a lamp could reach the ship (fog included); otherwise ships still out of range would break it.
+- **2026-11-13 · "Finish within N s" stretches with the difficulty's spawn interval** (×1.3 on Calm), since Calm spaces the ships out.
+- **2026-11-13 · "Save every X" levels allow one wreck for ★★★** (1-2, 2-5, 3-2). Otherwise the bonus adds nothing to "no wrecks".
+- **2026-11-13 · Tutorial nights lend the new ability** (2-1 the foghorn, 3-1 one flare, `loan` in the level), so they teach it even if it wasn't bought.
+- **2026-11-13 · 1-1's tutorial** follows GDD §7: ship 1 comes straight down the beam ("Ships follow your light."), the beam is swung away for 1.2 s once it's home ("Point where the light should go." or "Drag to swing the beam.", hidden as soon as a ship is lit), the first reef seen ("Lit ships see the rocks."), then two ships at once. Off when tutorial prompts are off.
+- **2026-11-13 · More first-time prompts:** cargo ship, sailboat, tugboat, iceberg, fog, storm waves, two harbors, second lamp, foghorn, flare. Prompts now queue (one at a time, 3.5 s each) instead of replacing each other.
+- **2026-11-13 · Current limit (found with the play-tester).** 1-6's first current (8 wu/s) held dark cargo ships at the spawn ring on Storm, so the night never ended. `validateLevel` now rejects a current stronger than 75% of the slowest ship's dark speed on any difficulty (`SEA.currentMaxShare`).
+- **2026-11-13 · A lit cargo ship can circle forever before a gap too narrow for it** (found in 4-5's first ring of eight reefs). 4-5 now has six; the play-tester reports any night that never ends, so a layout like that shows up.
+- **2026-11-13 · Fog and rocks (found with the fairness test).** In the first 2-4, 2-6 and 4-5 the fog bands covered reefs, so a ship coming out of the fog hit rock about 1 s after it could first be lit. `validateLevel` now rejects a rock behind fog or within 10 wu of a band, and those levels' fog moved out past the reefs (it now hides ships on their way in instead).
+- **2026-11-13 · The fairness check steers the nearer lamp** on second-lamp levels. Before, it only tried the island's lamp, so it reported ships near the second tower's reefs as impossible to save.
+- **2026-11-13 · The fairness test covers all 30 levels:** 120 nights for 1-2 (as before), 8 for each other level so `npm run test` stays a few minutes long. `FAIRNESS_SEEDS=120 npm run test` runs every level in full. 20 nights per level were also checked by hand.
+- **2026-11-13 · Star coins:** 5 per star earned for the first time on a level at a difficulty (× coin reward). Replays pay their ships but not their stars again, so coins can be farmed slowly but not stars.
+- **2026-11-13 · Results list what a night opened:** the next region, endless watch, the island building, the diary page, and shop items now for sale.
+- **2026-11-13 · Endless watch** (CONTENT.md §7 details): ends past the allowance like the campaign; starts with 2 reef clusters, at most 12; no ferries; pools come from cleared nights. Your upgrades apply (no buoys); saved ships pay coins.
+- **2026-11-13 · Daily sea:** seed from the local date; uses every ship type and hazard so every keeper gets the same sea; a "Daily sea" button sits under "Endless watch" once it's open. Best daily score is kept per day.
+- **2026-11-13 · The bot play-tester runs through Vitest** with its own config (`npm run playtest`), because Node can't load the game's TypeScript imports directly and we didn't want a new dependency. A small `tools/playtest/node.d.ts` declares the few Node functions it uses instead of adding `@types/node`.
+- **2026-11-13 · The bots** play with the upgrades a typical keeper owns on reaching each region (`tools/playtest/kits.ts`). "Smart" knows the layout and plays for the bonus, like a practised player; it rethinks every 0.1 s.
+- **2026-11-13 · The stand-in nights are gone;** unknown level ids fall back to 1-2. The demo nights (`?level=demo-ice` and so on) stay for debugging.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **The economy is far more generous than CONTENT.md §8 asks (owner decision needed; tracked in `docs/TODO.md`).** With the ship coins (§2) and prices (§4) as written, a ★★★ region pays 1.9–4× the cost of maxing Brighter lamp (target about 1.3×), and a keeper can afford every upgrade (about 1,200 coins) by region 2–3. Options: halve the coins per ship, raise the shop's cost growth (0.6) to about 1.2, or both. I haven't changed CONTENT's numbers; the economy table in `docs/balance-report.md` will show the effect of whichever you pick. Phase 10 has the balance pass.
+- **Balance outliers** (details in `docs/balance-report.md`): several region 2–5 "introduce" levels are easy for the smart bot (≈ 3.0 stars); the sweeper fails region 3+ finales and a few others more than the 20–40% target (3-6, 4-5, 4-6, 5-2), and a few less (3-4, 4-2, 5-3, 5-5); region 1's 1-3 is a step up before an easier 1-4 (its bonus, "no ship in the dark over 6 s", is fixed by CONTENT.md).
+- **Phase 06 tests to write (owner: no tests until the end):**
+  - unit: every bonus objective (incl. fog-aware "no long dark", difficulty-stretched "finish within"); ability loans; `beamStart`; the current-limit and bonus checks in `validateLevel`; `stepWatch` (pace ramp, reef placement clear of ships, hazard order, end past allowance, determinism per seed); `watchScore`; `watchFor` and `dailyKey`; `recordResult` star coins and `unlocksBetween`; `recordEndless` daily best; the tutorial runner; the hint queue
+  - fairness: run `describeFairness` on all 30 levels (slow; maybe a nightly job)
+  - Playwright: 1-1 tutorial prompts; Title → Endless watch → results → Again; Daily sea keeps its seed on restart; debug Unlock all / Jump to level
+- **With 20 or more nights per level, the fairness test's own guard trips on 1-1:** a player who never moves the beam wrecks only about 5 times in 20 nights there, and the guard wants more than a quarter of the nights to have a wreck ("or the check proves nothing"). It isn't an unfair wreck; the default 8 nights pass. The 1-1 tutorial is meant to be gentle.
+- **`npm run test` now takes about 3 minutes** (the fairness check replays all 30 levels).
+- **The bot play-tester takes several minutes** for all 30 levels × 3 difficulties × 3 bots × 40 nights. Use `PLAYTEST_LEVELS=2-`, `PLAYTEST_DIFF=keeper`, `PLAYTEST_BOTS=smart` or `PLAYTEST_SEEDS=10` while tuning.
+- **`main.ts` (308 lines), `debugPanel.ts` (320) and `world.ts` (302)** are a little over the ~300-line guideline. Worth splitting in phase 09.
+- **The "smart" bot is strong** (it knows every rock). The targets in the prompt are met against it, but a first-time human will find mid-campaign levels harder than its numbers suggest. Please play-test region 1 on Keeper as the checklist asks.
 - **Phase 05 tests to write (owner: no tests until the end, 2026-11-13):**
   - Playwright: the main path Title → Map → Level → Play → Pause → Quit (the phase checklist's test); a keyboard-only walk; Esc and browser back on every screen; no cut-off content in an iPhone-shaped viewport with notch insets
   - regression (bug fixed 2026-11-13): over the sea, the canvas (not the HUD layer) receives the mouse, so "follow finger" works with a cursor
   - unit: progress rules (unlocks, `recordResult`, upgrade and buoy prices, buying, buoy limit), `pickTip` and the night log, the navigator's back order, `levelDef` stand-ins, `nextLevelId`, settings store updates
 - **Progress resets on reload** (memory only until phase 08), so a fresh visit always starts at "Begin your watch" and the difficulty choice. Use `?progress=mid` or `?progress=all` to skip ahead.
-- **Unbuilt levels play stand-ins** (1-2 or a demo night), so every region-1 night looks like 1-2 and 1-1's briefing shows 1-2's cargo bonus. Phase 06 writes the real levels and 1-1's tutorial.
-- **Endless watch is a placeholder:** its button and locked hint are real, and its results screen can be seen with `?screen=endlessResults`, but the mode itself is phase 06.
 - **Sound sliders, high-contrast reefs and vibration don't do anything yet** (phases 07 and 08). Export/import save are greyed out until phase 08.
 - **Bell buoys can't be removed or moved** once placed (no rule in the docs; easy to add if wanted).
 - **The HUD level label for debug demos shows the demo's id** (for example "demo-cove"). Campaign nights show "1-2 The cargo run".
@@ -140,21 +168,18 @@ Claude Code updates this file at the end of every phase or session.
 - `npm audit` reports a moderate advisory in `minimatch`, which ESLint and typescript-eslint use. It only affects the developer's lint tooling and never reaches players. Clears when those packages update.
 - **Lighting a ship that is scraping along a reef can make it crash sooner.** A dark ship drifts at 60% speed, so it can creep along a reef's edge for several seconds. Lighting it in the last second or two speeds it up to full speed before it can turn away. Each such ship was savable earlier (the fairness test checks this), but it may feel unfair in play. Worth watching in play-tests; a possible fix is to let lit ships speed up gradually instead of instantly.
 - **Replays across different browsers may differ slightly**, because `Math.sin`/`Math.cos` can round differently from one engine to another. Within one browser a seed always replays exactly. This only matters if we ever share replays between devices.
-- Level 1-2 balance is rough (phase 10 does the balance pass). In 100 simulated nights on Keeper, a player who never moves the beam gets mostly ★ or ★★ and fails 6% of the time; a player who always lights the oldest ship gets mostly ★★ or ★★★.
 
 ## How to test the latest work
 (Plain-language steps for the owner.)
 
 1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173). On your phone (same Wi-Fi), open the **Network** address.
-2. **The main path:** tap "Tap to begin" → **Begin your watch** → pick a difficulty → **Light the lamp**. The night starts. Tap the pause button (top right) → **Quit to map** → tap **Harbor Bay** → tap a level buoy → read the briefing → **Light the lamp**. Finish or lose a night to see **Results** (dawn sky, stars one by one, or a tip if the fog won), then **Harbor** for the shop.
-3. **Back everywhere:** the phone's back gesture, the browser's back button and Esc should always do the sensible thing: close a dialog, open Pause during a night, or go back one screen.
-4. **Later progress:** add `?progress=mid` (region 1 done, 185 coins) or `?progress=all` to the address to see unlocked regions, stars, the shop with coins, diary pages and records.
-5. **One screen at a time:** `?screen=title`, `map`, `levelSelect`, `briefing&night=2-2`, `results`, `results&fail`, `shop&night=2-4&progress=mid`, `logbook&progress=mid`, `settings`, `credits`, `endlessResults`.
-6. **Settings to try** (from the title or from Pause, mid-night): left-handed buttons (abilities move to the left), larger text, reduced motion (no fog wipe, no star pop), colorblind colors (try `?level=demo-archipelago`), show frame rate, beam control, difficulty.
-7. **HUD with abilities:** `?level=demo-cove` or `?level=demo-archipelago` start with the foghorn (cooldown ring) and 3 flares (count badge); the archipelago adds the lamp switch. Keys H, F, Q, P still work.
-8. **Keyboard only (desktop):** Tab and Enter through every menu, arrow keys in the difficulty cards, settings choices and logbook tabs, Esc to go back.
-9. **Phase 04 sandbox** is unchanged: http://localhost:5173/#sandbox.
-10. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 65 s), `npm run e2e`.
+2. **Region 1 on Keeper (the phase checklist):** start fresh (no `?progress=`), choose **Keeper**, and play 1-1 to 1-6 in order. 1-1 teaches you: the first boat comes down the beam, then the beam swings away and asks you to bring it back, then a rock appears. Tell me whether each night feels fair and a little harder than the one before.
+3. **Finishing 1-6:** the results list what opened: Northern Ice, the endless watch, the cottage, a diary page and the foghorn in the shop. The cottage then stands on the island behind the menus, and the logbook has the new page. To get there fast: open the debug panel (` key, or `?debug`), **Jump to level** → 1-6.
+4. **Endless watch and daily sea:** once Harbor Bay is done, the title has **Endless watch** and **Daily sea**. Ships keep coming faster, a reef joins every 30 s, a new hazard every 2 minutes; the watch ends when you lose one ship more than your difficulty allows. **Again** starts another. The daily sea is the same for everyone today.
+5. **Any level:** debug panel → **Unlock all** (every level ★★★ on your difficulty) or **Jump to level**. `?level=3-4` still starts a night directly.
+6. **Bonus objectives** show on each briefing and on the results ("Done" or "Missed"). New star coins show as **Star bonus** on the results.
+7. **Balance numbers:** `docs/balance-report.md` (made by `npm run playtest`, about 3 minutes).
+8. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 3 minutes; it checks fairness on all 30 levels), `npm run e2e`, `npm run playtest`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -181,3 +206,15 @@ Claude Code updates this file at the end of every phase or session.
 
   The temporary HUD and end card are gone. Wrote the 30 briefing lines and 5 diary pages. Checked by script in a headless browser: the main path, a keyboard-only walk, every screen on portrait, landscape and desktop, the sandbox. No console errors. Typecheck, lint, 250 unit tests and 5 browser tests pass (one existing test now presses P to pause, one now looks for the new HUD). No new tests, per the owner. Phase complete, waiting for the owner's play-test.
 - **2026-11-13 · Fix: the beam didn't follow the mouse** (owner report). The HUD's full-screen layer was catching the pointer, because the `#ui > *` rule outranked `.hud { pointer-events: none }`. The rule is now `:where(#ui > *)`, so the HUD, toast and frame-rate counter let the pointer through to the sea. Checked in a browser: the beam turns toward the cursor, menu buttons still work, and the browser tests pass.
+- **2026-11-13 · Phase 06 Levels, campaign & modes.** Built:
+  - All 30 levels in `src/data/levels/` (shape helpers in `shape.ts`), registered in `LEVELS`; the stand-in nights are gone.
+  - Six new bonus objectives, ability loans, a starting beam angle, and new checks in `validateLevel` (bonus possible, current not too strong).
+  - 1-1's scripted tutorial (`src/scenes/tutorial.ts`) and ten more first-time prompts (`playHints.ts`, now queued).
+  - The bot play-tester (`npm run playtest`, `tools/playtest/`): three bots, per-region upgrade kits, report with outliers and an economy table in `docs/balance-report.md`. It found the too-strong current (1-6) and a ship stuck before a narrow gap (4-5), both fixed.
+  - Star coins and the unlock list on results; `recordEndless` and the daily best in progress.
+  - Endless watch (`src/sim/endless.ts`, `src/data/endless.ts`, `src/app/endless.ts`) and the daily sea, with Title buttons and a working "Again".
+  - Debug panel: Unlock all, Jump to level (`src/ui/debugCampaign.ts`).
+  - The fairness test now covers all 30 levels (8 seeds each by default, 120 for 1-2).
+
+  Checked in a headless browser: 1-1's prompts, the daily sea, several late levels; no console errors. No new tests, per the owner (list under Known issues). Phase complete, waiting for the owner's play-test of region 1.
+

@@ -34,7 +34,7 @@ export interface Reef {
 
 type IcebergDef = Extract<HazardDef, { kind: 'iceberg' }>;
 
-const makeRock = (
+export const makeRock = (
   kind: RockKind,
   x: number,
   y: number,

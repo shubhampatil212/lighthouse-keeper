@@ -7,6 +7,7 @@ export * from './beam';
 export * from './campaign';
 export * from './controls';
 export * from './difficulties';
+export * from './endless';
 export * from './harbors';
 export * from './hazards';
 export * from './island';

@@ -67,15 +67,23 @@ function savableFrom(night: Night, wreck: Wreck, fromTick: number): Rescue {
 
   const target = world.state.ships.find((s) => s.id === wreck.shipId);
   if (!target) return 'not at sea';
-  if (Math.hypot(target.x, target.y) > BEAM.range) return 'out of beam range';
-  const angle = Math.atan2(target.y, target.x);
-  world.state.beam.angle = angle;
-  world.state.beam.target = angle;
+  // Steer whichever lighthouse is nearer the ship (levels with a second lamp).
+  const lamp2 = world.state.lamp2;
+  const useSecond =
+    lamp2 !== null &&
+    Math.hypot(target.x - lamp2.x, target.y - lamp2.y) < Math.hypot(target.x, target.y);
+  const lamp = useSecond ? lamp2 : world.state.beam;
+  const from = useSecond ? lamp2 : { x: 0, y: 0 };
+  if (Math.hypot(target.x - from.x, target.y - from.y) > BEAM.range) return 'out of beam range';
+  world.state.activeLamp = useSecond ? 1 : 0;
+  const angle = Math.atan2(target.y - from.y, target.x - from.x);
+  lamp.angle = angle;
+  lamp.target = angle;
 
   const deadline = world.state.tick + 300 * 60;
   while (world.state.tick < deadline) {
     const ship = world.state.ships.find((s) => s.id === wreck.shipId);
-    world.step(DT, aimAt(ship ? Math.atan2(ship.y, ship.x) : null));
+    world.step(DT, aimAt(ship ? Math.atan2(ship.y - from.y, ship.x - from.x) : null));
     for (const event of world.drainEvents()) {
       if (event.type === 'shipSaved' && event.shipId === wreck.shipId) return 'saved';
       if (event.type === 'shipWrecked' && event.shipId === wreck.shipId) return 'wrecked anyway';

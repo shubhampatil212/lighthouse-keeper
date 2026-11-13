@@ -1,7 +1,6 @@
 /**
  * Endless watch results: score, best, time, ships saved and the daily-seed tag
- * (docs/SCREENS.md "Endless results"). The mode itself arrives in phase 06; until then this screen
- * can be previewed with ?screen=endlessResults.
+ * (docs/SCREENS.md "Endless results"). ?screen=endlessResults previews it with made-up numbers.
  */
 import type { Scene } from '../app/sceneManager';
 import { button } from '../ui/kit/controls';
@@ -35,7 +34,7 @@ export function createEndlessResultsScene(ctx: GameContext): Scene {
     const again = button(
       STRINGS.endlessAgain,
       () => {
-        ctx.toast(STRINGS.endlessSoon);
+        ctx.startWatch(run.daily !== null);
       },
       {
         variant: 'primary',

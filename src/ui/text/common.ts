@@ -71,6 +71,20 @@ export const COMMON = {
         return null;
       case 'saveAllOfType':
         return `Save every ${SHIP_NAMES[def.type].one}`;
+      case 'noLongDark':
+        return `Leave no ship in the dark for over ${def.seconds} seconds`;
+      case 'finishUnder':
+        return `Bring the night to an end within ${def.seconds} seconds`;
+      case 'savedTogether':
+        return `Bring ${def.count} ships home within ${def.within} seconds of each other`;
+      case 'catchSmugglers':
+        return def.count === 'all'
+          ? 'Catch every smuggler'
+          : `Catch ${plural(def.count, 'smuggler', 'smugglers')}`;
+      case 'noAbility':
+        return def.ability === 'flare' ? 'Never fire a flare' : 'Never sound the foghorn';
+      case 'driveOffPirates':
+        return `Drive pirates away ${def.count === 1 ? 'once' : `${def.count} times`}`;
     }
   },
   bonusDone: 'Done',

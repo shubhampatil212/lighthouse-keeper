@@ -54,11 +54,6 @@ export interface CampaignLevelDef {
   id: string;
   name: string;
   introduces: IntroId | null;
-  /**
-   * Until phase 06 writes this level, playing it loads this level (or debug demo) instead,
-   * renamed and tinted for the region.
-   */
-  standIn: string;
 }
 
 export interface CampaignRegionDef {
