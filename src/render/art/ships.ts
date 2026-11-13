@@ -3,57 +3,23 @@
  * its own upright rig (mast, sails, funnels, cabins), so the six types can be told apart at a glance:
  * fishing boat (teal, small sail), cargo ship (rust, containers, funnel), sailboat (white, tall sails),
  * ferry (cream and navy, long cabin, two funnels, gold lantern), tugboat (stubby, black and red,
- * fenders), smuggler (low, dark, patched sail, dim lantern).
+ * fenders), smuggler (low, dark, patched sail, dim lantern). Two more vessels that aren't ship types:
+ * the pirate (long black hull, black sails, red pennant with a skull, a throbbing crimson lantern) and
+ * the coast guard boat (white with a blue stripe, flashing blue light).
  * Drawings are shared between ships of the same type (one GraphicsContext each).
  */
 import { Graphics, GraphicsContext } from 'pixi.js';
-import type { ShipTypeId } from '../../data/types';
 import { PALETTE } from '../palette';
-import type { ShipArt, ShipLanternArt } from './types';
+import { boxy, funnel, hullBase, mast, MAST, pointed, SAIL, SHADOW, stubby } from './shipParts';
+import type { ShipArt, ShipLanternArt, VesselKind } from './types';
 
-const MAST = 0x2a2520;
-const SAIL = 0xe6dfcf;
-const SHADOW = { color: 0x000000, alpha: 0.32 };
+const PIRATE_BLACK = 0x121214;
+const PIRATE_RED = 0xb3242a;
+/** Bone-colored trim, so black sails still show as a silhouette against the night. */
+const PIRATE_TRIM = 0x8f877a;
+const GUARD_BLUE = 0x2a64b8;
 
-type Outline = (g: GraphicsContext, l: number, w: number) => GraphicsContext;
-
-const pointed: Outline = (g, l, w) =>
-  g
-    .moveTo(l * 0.55, 0)
-    .quadraticCurveTo(l * 0.1, -w * 0.6, -l * 0.45, -w * 0.45)
-    .lineTo(-l * 0.45, w * 0.45)
-    .quadraticCurveTo(l * 0.1, w * 0.6, l * 0.55, 0)
-    .closePath();
-
-const boxy: Outline = (g, l, w) =>
-  g
-    .moveTo(l * 0.5, 0)
-    .lineTo(l * 0.3, -w * 0.5)
-    .lineTo(-l * 0.5, -w * 0.46)
-    .lineTo(-l * 0.5, w * 0.46)
-    .lineTo(l * 0.3, w * 0.5)
-    .closePath();
-
-const stubby: Outline = (g, l, w) =>
-  g
-    .moveTo(l * 0.5, 0)
-    .quadraticCurveTo(l * 0.48, -w * 0.5, l * 0.1, -w * 0.5)
-    .lineTo(-l * 0.36, -w * 0.5)
-    .quadraticCurveTo(-l * 0.5, -w * 0.5, -l * 0.5, 0)
-    .quadraticCurveTo(-l * 0.5, w * 0.5, -l * 0.36, w * 0.5)
-    .lineTo(l * 0.1, w * 0.5)
-    .quadraticCurveTo(l * 0.48, w * 0.5, l * 0.5, 0)
-    .closePath();
-
-/** A shadow just larger than the hull, so ships sit in the water rather than on it. */
-function hullBase(outline: Outline, l: number, w: number, color: number): GraphicsContext {
-  const g = new GraphicsContext();
-  outline(g, l * 1.12, w * 1.25).fill(SHADOW);
-  outline(g, l, w).fill(color);
-  return g;
-}
-
-const HULLS: Record<ShipTypeId, (l: number, w: number) => GraphicsContext> = {
+const HULLS: Record<VesselKind, (l: number, w: number) => GraphicsContext> = {
   fishing: (l, w) =>
     hullBase(pointed, l, w, 0x2f5d6b)
       .rect(-l * 0.3, -w * 0.25, l * 0.5, w * 0.5)
@@ -109,27 +75,30 @@ const HULLS: Record<ShipTypeId, (l: number, w: number) => GraphicsContext> = {
       .fill(0x4b4a3c)
       .roundRect(l * 0.02, -w * 0.16, l * 0.14, w * 0.32, 1)
       .fill(0x4b4a3c),
+  pirate: (l, w) => {
+    const g = new GraphicsContext();
+    pointed(g, l * 1.12, w * 1.3).fill(SHADOW);
+    pointed(g, l, w).fill(PIRATE_BLACK);
+    pointed(g, l * 0.9, w * 0.72).fill(PIRATE_RED);
+    pointed(g, l * 0.84, w * 0.6).fill(0x2a2422);
+    // Deck planks and two gun ports a side.
+    for (let i = 0; i < 2; i++) {
+      g.rect(-l * 0.18 + i * l * 0.22, -w * 0.5, l * 0.06, w * 0.12).fill(0x050505);
+      g.rect(-l * 0.18 + i * l * 0.22, w * 0.38, l * 0.06, w * 0.12).fill(0x050505);
+    }
+    return g.rect(-l * 0.42, -w * 0.22, l * 0.14, w * 0.44).fill(0x3a2a20);
+  },
+  coastGuard: (l, w) =>
+    hullBase(pointed, l, w, 0xf2f0ea)
+      .rect(-l * 0.4, -w * 0.5, l * 0.82, w * 0.16)
+      .fill(GUARD_BLUE)
+      .rect(-l * 0.4, w * 0.34, l * 0.82, w * 0.16)
+      .fill(GUARD_BLUE)
+      .roundRect(-l * 0.22, -w * 0.26, l * 0.36, w * 0.52, 1)
+      .fill(0xd8dde2),
 };
 
-/** A mast from the deck up, `h` tall. */
-const mast = (g: GraphicsContext, x: number, h: number, width = 1.1): GraphicsContext =>
-  g.rect(x - width / 2, -h, width, h).fill(MAST);
-
-/** A funnel standing on the deck, with a colored band. */
-const funnel = (
-  g: GraphicsContext,
-  x: number,
-  h: number,
-  w: number,
-  band: number,
-): GraphicsContext =>
-  g
-    .rect(x - w / 2, -h, w, h)
-    .fill(0x2a2520)
-    .rect(x - w / 2, -h + 1, w, Math.max(1, h * 0.22))
-    .fill(band);
-
-const RIGS: Record<ShipTypeId, (l: number, w: number) => GraphicsContext> = {
+const RIGS: Record<VesselKind, (l: number, w: number) => GraphicsContext> = {
   fishing: (l) =>
     mast(new GraphicsContext(), 0, 13)
       .moveTo(1, -12)
@@ -191,15 +160,86 @@ const RIGS: Record<ShipTypeId, (l: number, w: number) => GraphicsContext> = {
       .fill(0x55524a)
       .rect(l * 0.08, -6, 2.4, 2)
       .fill(0x6b6656),
+  pirate: (l) => {
+    // Two masts with square black sails, and a red pennant with a pale skull at the main masthead.
+    const g = mast(new GraphicsContext(), l * 0.18, 20, 1.2);
+    mast(g, -l * 0.22, 16, 1.1);
+    g.moveTo(l * 0.18 - 6, -18)
+      .lineTo(l * 0.18 + 6, -18)
+      .lineTo(l * 0.18 + 7, -7)
+      .lineTo(l * 0.18 - 7, -7)
+      .closePath()
+      .fill(PIRATE_BLACK)
+      .stroke({ color: PIRATE_TRIM, width: 0.5 })
+      .moveTo(-l * 0.22 - 5, -14)
+      .lineTo(-l * 0.22 + 5, -14)
+      .lineTo(-l * 0.22 + 6, -5)
+      .lineTo(-l * 0.22 - 6, -5)
+      .closePath()
+      .fill(PIRATE_BLACK)
+      .stroke({ color: PIRATE_TRIM, width: 0.5 })
+      .moveTo(l * 0.18, -20)
+      .lineTo(l * 0.18 - 9, -22)
+      .lineTo(l * 0.18, -24)
+      .closePath()
+      .fill(PIRATE_RED)
+      .circle(l * 0.18 - 3.4, -22, 1.1)
+      .fill(0xe8dfc8);
+    return g;
+  },
+  coastGuard: (l) =>
+    new GraphicsContext()
+      .rect(-l * 0.2, -5, l * 0.34, 5)
+      .fill(0xf2f0ea)
+      .rect(-l * 0.2, -5, l * 0.34, 1)
+      .fill(GUARD_BLUE)
+      .rect(-l * 0.14, -3.6, l * 0.22, 1.2)
+      .fill(0x22303a)
+      .rect(-0.4, -10, 0.8, 5)
+      .fill(MAST),
 };
 
-const LANTERNS: Record<ShipTypeId, ShipLanternArt> = {
-  fishing: { along: 0, height: 13, color: PALETTE.lamp, glowScale: 1, brightness: 1 },
-  cargo: { along: 0.12, height: 16, color: PALETTE.lamp, glowScale: 1.05, brightness: 1 },
-  sailboat: { along: 0, height: 21, color: PALETTE.lamp, glowScale: 0.9, brightness: 1 },
-  ferry: { along: 0.34, height: 15, color: 0xffd23a, glowScale: 1.5, brightness: 1.25 },
-  tugboat: { along: 0.2, height: 12, color: PALETTE.lamp, glowScale: 1, brightness: 1 },
-  smuggler: { along: -0.04, height: 10, color: 0xe08a5a, glowScale: 0.8, brightness: 0.55 },
+const steady = { pulse: 0, blink: 0 };
+const LANTERNS: Record<VesselKind, ShipLanternArt> = {
+  fishing: { along: 0, height: 13, color: PALETTE.lamp, glowScale: 1, brightness: 1, ...steady },
+  cargo: {
+    along: 0.12,
+    height: 16,
+    color: PALETTE.lamp,
+    glowScale: 1.05,
+    brightness: 1,
+    ...steady,
+  },
+  sailboat: { along: 0, height: 21, color: PALETTE.lamp, glowScale: 0.9, brightness: 1, ...steady },
+  ferry: { along: 0.34, height: 15, color: 0xffd23a, glowScale: 1.5, brightness: 1.25, ...steady },
+  tugboat: { along: 0.2, height: 12, color: PALETTE.lamp, glowScale: 1, brightness: 1, ...steady },
+  smuggler: {
+    along: -0.04,
+    height: 10,
+    color: 0xe08a5a,
+    glowScale: 0.8,
+    brightness: 0.55,
+    ...steady,
+  },
+  // Bright crimson and throbbing, so it never reads as the smuggler's dim, steady lantern.
+  pirate: {
+    along: 0.18,
+    height: 20,
+    color: 0xff2430,
+    glowScale: 1.35,
+    brightness: 1.4,
+    pulse: 1.2,
+    blink: 0,
+  },
+  coastGuard: {
+    along: 0,
+    height: 10,
+    color: 0x4aa8ff,
+    glowScale: 1.1,
+    brightness: 1.3,
+    pulse: 0,
+    blink: 2.5,
+  },
 };
 
 export function createShipArt(): ShipArt & { destroy(): void } {

@@ -32,7 +32,7 @@ If code and docs disagree, the docs win, unless the owner says otherwise. When t
 1. **Simulation and rendering are separate.** `src/sim/` holds pure TypeScript game logic: no Pixi, no DOM, no `Math.random`, no `Date`. It advances on a **fixed 60 Hz timestep** and uses a **seeded RNG** (`src/sim/rng.ts`). `src/render/` reads simulation state and draws it. It never changes that state.
 2. **All tunable numbers live in `src/data/`** (TypeScript objects typed by interfaces in `src/data/types.ts`). No balance numbers hard-coded in logic.
 3. **World units, not pixels.** The island sits at (0,0). One world unit equals `S` screen pixels, where `S` is calculated from the viewport (the prototype's approach). The play area has a safe radius of 230 units that must always be visible.
-4. **Input is turned into intents.** `src/input/` converts pointer, touch, keyboard and gamepad events into `{ aimAngle, foghorn, flare, pause }` intents for the simulation.
+4. **Input is turned into intents.** `src/input/` converts pointer, touch, keyboard and gamepad events into `{ aimAngle, foghorn, flare, switchLamp, pause }` intents for the simulation.
 5. **Scenes:** `src/scenes/` has one module per screen, managed by `SceneManager` with enter/exit hooks and transitions.
 6. **Events:** the simulation emits typed events (`shipSaved`, `shipWrecked`, `reefRevealed` and so on) into a queue. Audio, effects and UI subscribe to these. They never poll internal state.
 7. **Saves:** one versioned save object in `src/save/`, stored in localStorage behind try/catch, with migrations when the version changes.

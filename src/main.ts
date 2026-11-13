@@ -8,7 +8,17 @@ import { createGameLoop } from './app/gameLoop';
 import { createSceneManager } from './app/sceneManager';
 import type { Viewport } from './app/viewport';
 import { watchViewport } from './app/viewportWatcher';
-import { AUTO_QUALITY, LOOP, QUALITY, SCENE_TRANSITION, VIEWPORT } from './data';
+import {
+  AUTO_QUALITY,
+  DEMO_LEVELS,
+  DEMO_UPGRADES,
+  LEVEL_1_2,
+  LEVELS,
+  LOOP,
+  QUALITY,
+  SCENE_TRANSITION,
+  VIEWPORT,
+} from './data';
 import type { QualityChoice, QualityLevel } from './data/types';
 import { createCodeArt } from './render/art/codeArt';
 import { applyViewport, createLayers } from './render/layers';
@@ -16,6 +26,7 @@ import { createAutoQuality, type AutoQuality } from './render/quality';
 import { PALETTE } from './render/palette';
 import { SCENE } from './scenes';
 import { createPlayScene } from './scenes/play';
+import { createSandboxScene } from './scenes/sandbox';
 import { createDebugPanel, DEFAULT_DEBUG_SETTINGS } from './ui/debugPanel';
 import { STRINGS } from './ui/strings';
 
@@ -73,7 +84,13 @@ async function boot(): Promise<void> {
     createFadeTransition(fade, SCENE_TRANSITION.fadeMs),
     () => viewport.current,
   );
-  const play = createPlayScene({
+  // ?level=1-2 or a debug demo such as ?level=demo-cove (see src/data/levels/demos.ts).
+  const levelParam = params.get('level') ?? '';
+  const demo = DEMO_LEVELS[levelParam];
+  const level = LEVELS[levelParam] ?? demo ?? LEVEL_1_2;
+  // The sandbox is a debug tool: dev builds, or ?debug in a production build.
+  const sandbox = location.hash === '#sandbox' && (import.meta.env.DEV || debug);
+  const sceneOptions = {
     layers,
     pixi: app.renderer,
     art,
@@ -86,6 +103,13 @@ async function boot(): Promise<void> {
     quality: QUALITY[qualityLevel],
     buildings: [],
     reducedMotion,
+  };
+  const play = sandbox
+    ? createSandboxScene(sceneOptions)
+    : createPlayScene({ ...sceneOptions, level, ...(demo ? { upgrades: DEMO_UPGRADES } : {}) });
+  // Switching to or from #sandbox in the address bar reloads into the other scene.
+  window.addEventListener('hashchange', () => {
+    location.reload();
   });
 
   const showQuality = (): void => {
@@ -116,7 +140,8 @@ async function boot(): Promise<void> {
   debugPanel.setRenderer(app.renderer.name);
   play.attachDebugPanel(debugPanel);
   showQuality();
-  scenes.register(SCENE.play, play);
+  const sceneName = sandbox ? SCENE.sandbox : SCENE.play;
+  scenes.register(sceneName, play);
 
   onViewport = (vp) => {
     app.renderer.resize(vp.width, vp.height, vp.resolution);
@@ -146,7 +171,7 @@ async function boot(): Promise<void> {
     },
   }).start();
 
-  await scenes.go(SCENE.play);
+  await scenes.go(sceneName);
 }
 
 boot().catch((error: unknown) => {

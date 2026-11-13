@@ -21,9 +21,9 @@ describe('failReason', () => {
 });
 
 describe('allShipsResolved', () => {
-  it('is true once every ship is home or wrecked', () => {
-    expect(allShipsResolved(6, 4, 1)).toBe(false);
-    expect(allShipsResolved(6, 5, 1)).toBe(true);
+  it('is true once every ship is resolved (home, wrecked, caught or escaped)', () => {
+    expect(allShipsResolved(6, 5)).toBe(false);
+    expect(allShipsResolved(6, 6)).toBe(true);
   });
 });
 
@@ -55,6 +55,7 @@ describe('bonus objectives', () => {
     tick: 1,
     shipId: 1,
     shipType,
+    cause: 'reef',
     reefIndex: 0,
     x: 0,
     y: 0,

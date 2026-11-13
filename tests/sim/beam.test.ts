@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BEAM, BEAM_FEEL, BEAM_UPGRADES, NO_UPGRADES } from '../../src/data';
-import { beamStats, isLit, stepBeam, type BeamState, type LightSources } from '../../src/sim';
+import { BEAM, BEAM_FEEL, BEAM_UPGRADES, HAZARDS, NO_UPGRADES } from '../../src/data';
+import {
+  beamStats,
+  isLit,
+  lightAt,
+  stepBeam,
+  type BeamState,
+  type LightSources,
+} from '../../src/sim';
 import { DT } from './helpers';
 
 const stats = beamStats(BEAM, BEAM_UPGRADES, NO_UPGRADES);
@@ -69,14 +76,19 @@ describe('stepBeam', () => {
 });
 
 describe('isLit', () => {
-  const light = (overrides: Partial<LightSources> = {}): LightSources => ({
-    angle: 0,
-    stats,
-    edgeTolerance: BEAM_FEEL.edgeTolerance,
-    buoys: [],
-    mapLit: false,
-    ...overrides,
-  });
+  const light = (overrides: Partial<LightSources> & { angle?: number } = {}): LightSources => {
+    const { angle = 0, ...rest } = overrides;
+    return {
+      lamps: [{ x: 0, y: 0, angle, glowRadius: stats.glowRadius }],
+      stats,
+      edgeTolerance: BEAM_FEEL.edgeTolerance,
+      buoys: [],
+      mapLit: false,
+      fog: [],
+      fogRangeFactor: HAZARDS.fog.rangeFactor,
+      ...rest,
+    };
+  };
   const polar = (d: number, a: number): [number, number] => [d * Math.cos(a), d * Math.sin(a)];
 
   it('lights the island glow in every direction', () => {
@@ -112,5 +124,37 @@ describe('isLit', () => {
 
   it('lights everything during a map-wide light', () => {
     expect(isLit(light({ mapLit: true }), 500, -500)).toBe(true);
+  });
+
+  it('reaches only 65% of its range through a fog band', () => {
+    // A band across the beam's path, 80–100 units out.
+    const fog = [{ x: 90, y: 0, angle: Math.PI / 2, length: 100, width: 20 }];
+    const l = light({ fog });
+    expect(isLit(l, 70, 0)).toBe(true); // in front of the fog
+    expect(isLit(l, 120, 0)).toBe(true); // behind it, but within 0.65 × 190 = 123.5
+    expect(isLit(l, 125, 0)).toBe(false);
+    expect(isLit(light(), 125, 0)).toBe(true); // the same point with no fog
+    // A beam that misses the band keeps its full range.
+    expect(isLit(light({ fog, angle: Math.PI }), -185, 0)).toBe(true);
+  });
+
+  it('lights from a second lamp, with its own glow and beam', () => {
+    const l = light({
+      angle: Math.PI,
+      lamps: [
+        { x: 0, y: 0, angle: Math.PI, glowRadius: 60 },
+        { x: 100, y: 0, angle: Math.PI / 2, glowRadius: 36 },
+      ],
+    });
+    expect(lightAt(l, 100, 30)).toEqual(expect.objectContaining({ x: 100, y: 0 }));
+    expect(isLit(l, 100, 180)).toBe(true);
+    expect(isLit(l, 100, -40)).toBe(false);
+  });
+
+  it('says where the light comes from', () => {
+    expect(lightAt(light(), 100, 0)).toEqual(expect.objectContaining({ x: 0, y: 0 }));
+    const buoy = { x: 150, y: 150, radius: 54 };
+    expect(lightAt(light({ angle: Math.PI, buoys: [buoy] }), 150, 160)).toBe(buoy);
+    expect(lightAt(light(), 0, 100)).toBeNull();
   });
 });

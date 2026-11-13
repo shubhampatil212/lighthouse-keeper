@@ -5,6 +5,7 @@ import type { ShipBehaviorConfig } from './types';
  * Values CONTENT.md doesn't list (dark turn rate, avoidance weights, wake) come from the prototype.
  */
 export const SHIP_BEHAVIOR: ShipBehaviorConfig = {
+  islandAvoidPadding: 30,
   darkSpeedFactor: 0.6,
   darkErrorRange: 1.05,
   darkErrorRerollMin: 2,

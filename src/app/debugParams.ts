@@ -1,7 +1,7 @@
 /**
  * Debug settings from the address bar, so a look can be opened directly (used for screenshots):
  * ?quality=low|medium|high|auto  ?region=northernIce  ?weather=clear|fog|rain|snow  ?parade
- * ?buildings=all  ?reveal. Unknown values are ignored.
+ * ?buildings=all  ?reveal  ?colorblind. Unknown values are ignored.
  */
 import { REGION_IDS, WEATHER_PRESETS, type WeatherPresetId } from '../data/regions';
 import type { QualityChoice, RegionId } from '../data/types';
@@ -26,5 +26,6 @@ export function settingsFromAddress(params: URLSearchParams, base: DebugSettings
   if (params.has('parade')) next.parade = true;
   if (params.get('buildings') === 'all') next.allBuildings = true;
   if (params.has('reveal')) next.revealAll = true;
+  if (params.has('colorblind')) next.colorblind = true;
   return next;
 }

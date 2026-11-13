@@ -5,28 +5,35 @@
  * while the simulation says it's lit (with a short fade). After 4 s in the dark a "?" marker pulses.
  */
 import { Container, Graphics, Sprite, Text } from 'pixi.js';
-import type { RenderFeelConfig, ShipTypeConfig, ShipTypeId } from '../data/types';
+import type { RenderFeelConfig } from '../data/types';
 import type { WakePoint } from '../sim/ships';
-import type { ArtProvider, Point } from './art/types';
+import type { ArtProvider, Point, VesselKind } from './art/types';
 import { GLOW_TEXTURE_RADIUS } from './art/types';
 import { approach } from './interpolate';
+import { VESSEL_FEEL } from '../data/vesselFeel';
 import { PALETTE } from './palette';
 
 /** What the view needs to know about one ship this frame (already blended between ticks). */
 export interface ShipPose {
   id: number;
-  type: ShipTypeId;
+  type: VesselKind;
   x: number;
   y: number;
   heading: number;
   lit: boolean;
   lost: boolean;
   wake: readonly WakePoint[];
+  /** 0–1: how close a hunting pirate is to boarding (its lantern throbs faster). */
+  alarm?: number;
+  /** Brightness multiplier (a smuggler under tow is dimmed). */
+  dim?: number;
 }
 
 export interface ShipView {
   /** Draws the ships and returns where their lanterns light the water (for the light map). */
   draw(ships: readonly ShipPose[], dt: number, time: number): Point[];
+  /** Where a vessel's lantern hangs this frame (after draw), for markers drawn beside it. */
+  lanternAt(id: number): Point | undefined;
   /** Text needs to know the pixel density to stay sharp. */
   setTextResolution(resolution: number): void;
   clear(): void;
@@ -44,6 +51,7 @@ interface ShipSprite {
   /** The rig's sideways direction on screen, eased so it doesn't flip in one frame. */
   side: number;
   seen: boolean;
+  lantern: Point;
 }
 
 /** A rig is never drawn narrower than this, so sails don't vanish when a ship sails up or down the screen. */
@@ -53,7 +61,7 @@ const MARKER_GAP = 9;
 
 export function createShipView(
   art: ArtProvider,
-  types: Record<ShipTypeId, ShipTypeConfig>,
+  types: Record<VesselKind, { length: number; width: number }>,
   layers: { ships: Container; lightFx: Container },
   feel: RenderFeelConfig,
 ): ShipView {
@@ -66,7 +74,7 @@ export function createShipView(
   const sprites = new Map<number, ShipSprite>();
   let textResolution = 2;
 
-  const make = (type: ShipTypeId): ShipSprite => {
+  const make = (type: VesselKind): ShipSprite => {
     const { length, width } = types[type];
     const root = new Container();
     const hull = art.ships.createHull(type, length, width);
@@ -77,7 +85,8 @@ export function createShipView(
     const glow = new Sprite({ texture: art.textures.glow, anchor: 0.5, blendMode: 'add' });
     glow.tint = lantern.color;
     const core = new Sprite({ texture: art.textures.dot, anchor: 0.5, blendMode: 'add' });
-    core.tint = PALETTE.lampHot;
+    // Pirate and coast guard lights are colored through and through; ship lanterns burn white-hot.
+    core.tint = type === 'pirate' || type === 'coastGuard' ? lantern.color : PALETTE.lampHot;
     const marker = new Text({
       text: '?',
       anchor: 0.5,
@@ -90,7 +99,18 @@ export function createShipView(
       },
     });
     lights.addChild(glow, core, marker);
-    return { root, hull, rig, glow, core, marker, visible: 0, side: 1, seen: false };
+    return {
+      root,
+      hull,
+      rig,
+      glow,
+      core,
+      marker,
+      visible: 0,
+      side: 1,
+      seen: false,
+      lantern: { x: 0, y: 0 },
+    };
   };
 
   const remove = (id: number, sprite: ShipSprite): void => {
@@ -126,8 +146,9 @@ export function createShipView(
         const roll = Math.sin(time * feel.rollSpeed + ship.id * 2.1) * feel.rollAngle;
         sprite.root.position.set(ship.x, ship.y + bob);
         sprite.root.zIndex = ship.y;
+        const dim = ship.dim ?? 1;
         sprite.root.visible = v > 0.01;
-        sprite.root.alpha = v;
+        sprite.root.alpha = v * dim;
         sprite.hull.rotation = ship.heading;
 
         // The rig's x axis follows the hull on screen: across by cos(heading), up and down by sin(heading).
@@ -143,14 +164,25 @@ export function createShipView(
         const mast = lantern.along * length;
         const lx = ship.x + along.x * mast + Math.sin(roll) * lantern.height;
         const ly = ship.y + bob + along.y * mast - lantern.height;
+        // Pirate lanterns throb (faster as they close in), the coast guard's light flashes.
+        const alarm = ship.alarm ?? 0;
+        const pulseRate = lantern.pulse + alarm * VESSEL_FEEL.huntPulse;
+        const throb = pulseRate > 0 ? 0.75 + 0.25 * Math.sin(time * Math.PI * 2 * pulseRate) : 1;
+        const flash =
+          lantern.blink > 0 && Math.sin(time * Math.PI * 2 * lantern.blink) < 0 ? 0.2 : 1;
+        const shine = throb * flash * dim;
         const glowRadius =
-          (ship.lit ? feel.lanternGlowLit : feel.lanternGlowDark) * lantern.glowScale;
+          (ship.lit ? feel.lanternGlowLit : feel.lanternGlowDark) *
+          lantern.glowScale *
+          (1 + alarm * 0.35 * throb);
         sprite.glow.position.set(lx, ly);
         sprite.glow.scale.set(glowRadius / GLOW_TEXTURE_RADIUS);
-        sprite.glow.alpha = Math.min(1, (ship.lit ? 0.95 : 0.7) * lantern.brightness);
+        sprite.glow.alpha = Math.min(1, (ship.lit ? 0.95 : 0.7) * lantern.brightness * shine);
         sprite.core.position.set(lx, ly);
         sprite.core.scale.set((ship.lit ? 0.42 : 0.32) * lantern.glowScale);
-        sprite.core.alpha = Math.min(1, 0.9 * lantern.brightness);
+        sprite.core.alpha = Math.min(1, 0.9 * lantern.brightness * shine);
+        sprite.lantern.x = lx;
+        sprite.lantern.y = ly;
         pools.push({ x: ship.x + along.x * mast, y: ship.y });
 
         sprite.marker.visible = ship.lost && !ship.lit;
@@ -180,6 +212,9 @@ export function createShipView(
       }
       for (const [id, sprite] of sprites) if (!sprite.seen) remove(id, sprite);
       return pools;
+    },
+    lanternAt(id) {
+      return sprites.get(id)?.lantern;
     },
     setTextResolution(resolution) {
       textResolution = resolution;

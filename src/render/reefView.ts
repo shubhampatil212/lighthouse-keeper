@@ -1,12 +1,16 @@
 /**
- * Layers 2 and 3: shallows, rocks and buoys. A rock is drawn only while the simulation says it's lit
- * (with a short fade). Once the light leaves, a dashed amber outline remains and fades with the
- * rock's reef memory. The lighter shallows around a reef show only while that reef is visible, so
- * they never give a hidden reef away.
+ * Layers 2 and 3: shallows, rocks, icebergs and buoys. A rock is drawn only while the simulation says
+ * it's lit (with a short fade). Once the light leaves, a dashed amber outline remains and fades with
+ * the rock's reef memory (ice-blue for icebergs). The lighter shallows around a reef show only while
+ * that reef is visible, so they never give a hidden reef away. Icebergs drift every tick, and the
+ * sandbox can add or remove them mid-night, so sprites are kept per rock rather than per position.
+ * The second lighthouse's islet is drawn by secondLampView, not here.
  */
 import { Container, Graphics, Sprite } from 'pixi.js';
 import type { RenderFeelConfig } from '../data/types';
+import type { Rock } from '../sim/reefs';
 import type { World } from '../sim/world';
+import { ICE_EDGE } from './art/reefs';
 import { rockSeed } from './art/rockShape';
 import type { ArtProvider, Point, RockShape } from './art/types';
 import { GLOW_TEXTURE_RADIUS } from './art/types';
@@ -60,30 +64,42 @@ export function createReefView(
   const buoyLights = new Container({ label: 'buoyLights' });
   layers.lightFx.addChild(buoyLights);
 
-  let rocks: RockSprite[] = [];
+  const rocks = new Map<Rock, RockSprite>();
   let reefShallows: Sprite[] = [];
   let buoys: BuoySprite[] = [];
+  let levelSeed = 0;
 
   const clear = (): void => {
     for (const box of [shallows, rocksBox, buoysBox, buoyLights]) {
       for (const child of box.removeChildren()) child.destroy({ children: true });
     }
-    rocks = [];
+    rocks.clear();
     reefShallows = [];
     buoys = [];
+  };
+
+  /** Rocks keep the look they had since phase 03; icebergs added later get a seed from their reef. */
+  const makeSprite = (rock: Rock, seed: number): RockSprite => {
+    const shape = art.reefs.rockShape(seed, rock.r);
+    const lightFrom = { x: -rock.x, y: -rock.y };
+    const body =
+      rock.kind === 'iceberg'
+        ? art.reefs.createIceberg(shape, lightFrom)
+        : art.reefs.createRock(shape, lightFrom);
+    body.position.set(rock.x, rock.y);
+    body.alpha = 0;
+    body.visible = false;
+    rocksBox.addChild(body);
+    return { body, shape, visible: 0 };
   };
 
   return {
     setNight(world) {
       clear();
       const { level } = world.setup;
-      rocks = world.state.rocks.map((rock, i) => {
-        const shape = art.reefs.rockShape(rockSeed(level.seed, i), rock.r);
-        const body = art.reefs.createRock(shape, { x: -rock.x, y: -rock.y });
-        body.position.set(rock.x, rock.y);
-        body.alpha = 0;
-        rocksBox.addChild(body);
-        return { body, shape, visible: 0 };
+      levelSeed = level.seed;
+      world.state.rocks.forEach((rock, i) => {
+        if (rock.kind !== 'islet') rocks.set(rock, makeSprite(rock, rockSeed(level.seed, i)));
       });
       reefShallows = world.setup.reefs.map((reef, index) => {
         const extent = world.state.rocks
@@ -117,13 +133,23 @@ export function createReefView(
       const reefVisible = new Array<number>(reefShallows.length).fill(0);
       foam.clear();
       memory.clear();
-      world.state.rocks.forEach((rock, i) => {
-        const sprite = rocks[i];
-        if (!sprite) return;
+      const seen = new Set<Rock>();
+      for (const rock of world.state.rocks) {
+        if (rock.kind === 'islet') continue;
+        seen.add(rock);
+        let sprite = rocks.get(rock);
+        if (!sprite) {
+          sprite = makeSprite(rock, rockSeed(levelSeed, 1000 + rock.reef));
+          rocks.set(rock, sprite);
+        }
+        const ice = rock.kind === 'iceberg';
+        if (ice) sprite.body.position.set(rock.x, rock.y);
         sprite.visible = approach(sprite.visible, rock.lit ? 1 : 0, rate, dt);
         sprite.body.alpha = sprite.visible;
         sprite.body.visible = sprite.visible > 0.01;
-        reefVisible[rock.reef] = Math.max(reefVisible[rock.reef] ?? 0, sprite.visible);
+        if (rock.reef < reefVisible.length) {
+          reefVisible[rock.reef] = Math.max(reefVisible[rock.reef] ?? 0, sprite.visible);
+        }
         if (sprite.visible > 0.01) {
           const pulse = Math.sin(time * 2 + rock.x * 0.37) * feel.foamPulse;
           foam
@@ -133,7 +159,11 @@ export function createReefView(
               rock.r + feel.foamReach + pulse,
               (rock.r + feel.foamReach * 0.6 + pulse) * 0.8,
             )
-            .stroke({ color: PALETTE.seaCrest, width: 1.1, alpha: 0.5 * sprite.visible });
+            .stroke({
+              color: ice ? ICE_EDGE : PALETTE.seaCrest,
+              width: ice ? 1.4 : 1.1,
+              alpha: (ice ? 0.75 : 0.5) * sprite.visible,
+            });
         }
         if (!rock.lit && rock.memory > 0.02) {
           const points: Point[] = sprite.shape.points.map((p) => ({
@@ -143,9 +173,18 @@ export function createReefView(
           for (const [x0, y0, x1, y1] of dashOutline(points, feel.memoryDash, feel.memoryGap)) {
             memory.moveTo(x0, y0).lineTo(x1, y1);
           }
-          memory.stroke({ color: PALETTE.lamp, width: 0.9, alpha: rock.memory * feel.memoryAlpha });
+          memory.stroke({
+            color: ice ? ICE_EDGE : PALETTE.lamp,
+            width: 0.9,
+            alpha: rock.memory * feel.memoryAlpha,
+          });
         }
-      });
+      }
+      for (const [rock, sprite] of rocks) {
+        if (seen.has(rock)) continue;
+        sprite.body.destroy({ children: true });
+        rocks.delete(rock);
+      }
       reefShallows.forEach((s, i) => {
         s.alpha = (reefVisible[i] ?? 0) * 0.16;
       });

@@ -7,6 +7,8 @@ export interface Intents {
   aimAngle: number | null;
   foghorn: boolean;
   flare: boolean;
+  /** Switch which lighthouse the player steers (levels with a second lamp). */
+  switchLamp: boolean;
   pause: boolean;
 }
 
@@ -14,5 +16,6 @@ export const NO_INTENTS: Readonly<Intents> = {
   aimAngle: null,
   foghorn: false,
   flare: false,
+  switchLamp: false,
   pause: false,
 };

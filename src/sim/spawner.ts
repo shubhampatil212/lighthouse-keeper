@@ -8,6 +8,14 @@ export interface SpawnOrder {
   type: ShipTypeId;
   /** Direction from the island to the spawn point (radians). */
   angle: number;
+  /** Index into the night's harbors. */
+  harbor: number;
+}
+
+/** A pirate ship's arrival. */
+export interface PirateOrder {
+  at: number;
+  angle: number;
 }
 
 /** Screen y grows downward, so north (up) is -PI/2. */
@@ -32,6 +40,16 @@ export function planSpawns(
         'edge' in ship
           ? COMPASS[ship.edge] + rng.range(-sea.edgeSpawnSpread, sea.edgeSpawnSpread)
           : ship.angle,
+      harbor: ship.harbor ?? 0,
     }))
+    .sort((a, b) => a.at - b.at);
+}
+
+/** Pirates arrive on the level's schedule, stretched by the difficulty like the ships. */
+export function planPirates(level: LevelDef, difficulty: DifficultyConfig): PirateOrder[] {
+  return level.hazards
+    .flatMap((h) =>
+      h.kind === 'pirate' ? [{ at: h.at * difficulty.spawnInterval, angle: h.angle }] : [],
+    )
     .sort((a, b) => a.at - b.at);
 }

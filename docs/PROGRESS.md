@@ -8,7 +8,7 @@ Claude Code updates this file at the end of every phase or session.
 | 01 Foundation | done (owner accepted 2026-11-13) | Toolchain, folders, viewport/loop/scenes, RNG, fonts, placeholder sea + island + sweeping beam |
 | 02 Core simulation | done (awaiting owner check) | Deterministic sim, level 1-2 playable with debug graphics, fairness test, input (follow finger / drag to rotate / keyboard), debug panel |
 | 03 Rendering & visuals | done (owner accepted 2026-11-13) | Real 2.5D look: light-map darkness, water shader, beam shaft and bloom, low-poly reefs, six ship looks, island and buildings, fog/rain/snow, effects, region tints, Low/Medium/High/Auto |
-| 04 Ships & hazards | not started | |
+| 04 Ships & hazards | done (awaiting owner check) | Sailboat, ferry, tugboat, smuggler + coast guard; fog bands, icebergs, lightning, storm waves, whirlpool, pirates; second harbor with colorblind shapes; foghorn, flares, second lamp, bell buoy chime; sandbox at #sandbox; demo nights; fairness passes with every hazard |
 | 05 UI & screens | not started | |
 | 06 Levels & campaign | not started | |
 | 07 Audio | not started | |
@@ -61,10 +61,47 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-13 · Edge arrows** point at ships sailing beyond the screen edge, and pulse for ships due in the next 2 s.
 - **2026-11-13 · The current arrow stays** (subtle, upper left) until the phase 05 HUD.
 - **2026-11-13 · Look numbers** (bob, roll, fades, glows, fog speeds, effect sizes) live in `src/data/renderFeel.ts`, region colors in `src/data/regions.ts`. The file isn't called `render.ts` because the lint rule that keeps the simulation pure blocks any import path ending in `render`.
+- **2026-11-13 · Phase 04 numbers CONTENT.md didn't give** are listed in CONTENT.md under "Rules and numbers added in phase 04" and live in `src/data/` (`ships.ts` TUG and SMUGGLER, `hazards.ts`, `abilities.ts`, `harbors.ts`). Tug: 50 wu, ×0.5 speed. Whirlpool pull: 8 wu/s at the centre. Pirate: 11/19/22 wu/s, patrols 150 wu out. Coast guard boat: 34 wu/s out, 14 wu/s towing.
+- **2026-11-13 · Pirate reaction window (fairness).** A pirate only hunts ships inside the beam's range, and must chase a ship for 2.5 s before it can board it. A dashed red line and a ring closing on the prey show those 2.5 s. Without this, a ship entering the beam's range next to a pirate could be sunk at once. This rule was designed in up front; the fairness test confirms it (pirates sink ships for the lazy player, and every such wreck had a 2 s rescue window).
+- **2026-11-13 · Icebergs (found with the fairness test).** First try: lit ships were rammed from the side by drifting icebergs, or squeezed between an iceberg and a reef, even while lit. Three fixes:
+  - Lit ships judge "ahead" by relative motion, so they see an iceberg closing in from the side.
+  - Only a ship sailing (nearly) head-on into an iceberg wrecks. An iceberg drifting into a ship's side shoves it aside.
+  - Icebergs bounce off rocks and each other, keeping 30 wu of open water. They also bounce to stay within the fair zone (outer edge ≤ 140 wu, inner edge 10 wu clear of the harbor).
+  Tried and dropped: "pass behind a drifting iceberg" made it worse.
+- **2026-11-13 · Storm waves need reefs further in (found with the fairness test).** On Storm, a dark ship with the waves and current behind it drifts at ~24 wu/s, which left only 1.5 s to save it. Storm-wave levels must keep rocks a further 16 wu inside the reef limit (`HAZARDS.stormWaves.extraReefMargin`, checked by `validateLevel`). Lit ships lean into the waves so they still go where they mean to.
+- **2026-11-13 · Smugglers** cross the map toward an exit point (so they need not head for a harbor), turn away from whatever lights them, and are caught by 2 s of *unbroken* light. They're never wrecked by anything (reefs, whirlpool, pirates). Pirates leave them alone. A caught or escaped smuggler counts as resolved for ending the night, but not toward stars.
+- **2026-11-13 · The foghorn slows a ship's own speed** to ×0.4 for 3 s, for ships within 140 wu at the moment it sounds. The current and waves still push them. Cooldown 12/10/8 s by level. Flares: charges = flare upgrade level.
+- **2026-11-13 · Second lamp:** a second tower on a 10 wu islet (an always-lit rock, so ships steer round it), with a 36 wu glow and the main lamp's beam stats. The lamp you aren't steering sweeps at 0.5 rad/s. A lamp you take over stops where it is. The pointer aims around the lamp you're steering. New intent `switchLamp` (CLAUDE.md updated).
+- **2026-11-13 · Second harbor:** a harbor is a water zone with a pier and a ring of lights in its color. Ships bound elsewhere steer round the island and never sail onto it.
+- **2026-11-13 · Harbor colors:** red and blue. Colorblind mode is orange and sky blue (0x56b4e9 rather than 0x0072b2, which vanished on night water), plus a circle or triangle marker. Destination dots show beside each lantern, even in the dark, whenever a night has more than one harbor. Until the settings screen (phase 08), colorblind mode is a debug toggle and `?colorblind`.
+- **2026-11-13 · The whirlpool is always faintly visible**, even in the dark: it's moving water, and a hidden deadly hazard would feel unfair. Brighter when lit.
+- **2026-11-13 · Fog shortens the beam's look** (a night-colored shadow behind each band past 65% of the range, plus the air glow, shaft and lit water along the beam's centre line), using the same rule as the simulation.
+- **2026-11-13 · Lightning is cold white, a flare is warm.** The map-wide flood now sits outside the region-tinted lights so the two can differ. (In Northern Ice, whose light is cool, a flare reads cool-ish too.)
+- **2026-11-13 · Hazards use their own random stream**, separate from ship spawns, so adding lightning or a pirate to a level never changes when or how its ships arrive.
+- **2026-11-13 · Pirates arrive on the level's schedule, stretched by the difficulty** like ships.
+- **2026-11-13 · New events** for audio, effects and UI: `smugglerCaught`, `smugglerEscaped`, `smugglerTowed`, `tugTowing`, `buoyRang`, `foghornUsed`, `flareFired`, `lampSwitched`, `abilityUnavailable` (cooldown, empty or locked), `lightningWarning`, `lightning`, `wavesShifted`, `shipInWhirlpool`, `pirateArrived`, `pirateHunting`, `pirateDrivenOff`. `shipWrecked` now has a `cause` (reef, iceberg, whirlpool, pirate), and `reefRevealed` carries its position.
+- **2026-11-13 · Sandbox is debug only:** `#sandbox` in a dev build (`npm run dev`), or with `?debug` in a production build. Changing the night options (abilities, buoys, second harbor or lamp) restarts it.
+- **2026-11-13 · Demo nights** (`?level=demo-ice`, `demo-storm`, `demo-cove`, `demo-archipelago`) show each group of new elements in play before the campaign exists. They start with the foghorn and 3 flares. They're not campaign levels.
+- **2026-11-13 · Temporary ability buttons** (Horn, Flare, Switch lamp) sit at the bottom of the screen, 44 px tall, until the phase 05 HUD. Keys: H = horn, F = flare, Q = switch lamp.
 
 ## Known issues
 (Bugs and rough edges, newest first.)
 
+- **Tests still to write (owner asked to defer, 2026-11-13).** Already covered: fairness with every hazard, fog, icebergs, lightning, whirlpools, pirates, determinism, and all special ships. Still to write:
+  - the foghorn: locked, slow, cooldown by level
+  - flares: charges, empty
+  - second lamp: switching, the idle sweep, pointer aim around it
+  - the bell-buoy chime
+  - storm waves pushing lit ships, and their lean-in
+  - the pirate's exact boarding moment (it boards a little later than 2.5 s when it starts right on top of a ship, because it overshoots and turns back)
+  - the sandbox's world edits (launchShip, addHazard, clearHazard)
+  - the input keys and buttons
+  - a browser smoke test of #sandbox (checked by hand with a script: no console errors)
+- **`Renderer.ts` is 325 lines and `lightMap.ts` 313**, a little over the ~300 guideline. Worth splitting during phase 09 polish.
+- **The second lamp lights the water without sparkles** (the water shader knows only the island's beam). Light and reveals are correct.
+- **The fog shadow can darken the other lamp's cone** where they overlap. It only shows on a level with both fog and a second lamp.
+- **Not seen on screen yet:** the tug's rope line and the whirlpool-wreck swirl (both checked in code; the sandbox shows them), and the lightning warning glow (too brief for a screenshot).
+- **The whole test suite now takes about 70 s** (the fairness runs replay thousands of nights). The fairness checks are split over three files so they run in parallel.
 - **Ships are small on portrait phones.** The whole 230-unit circle must fit the phone's width, so on a 390 px-wide phone one world unit is about 0.8 px and a fishing boat is about 11 px long. All six types are clearly different on desktop and in the zoomed parade, but on a phone they're small. Options if it bothers you in play: draw ships larger than their collision size, or revisit the phase 01 scale rule. Worth checking on your phone with the **Ship parade**.
 - **Low quality looks a little flat in the beam** (no water shader, so lit water is lighter but not warm). It's the fallback for weak devices.
 - The water shader's WebGPU version is checked in desktop Chrome only (with a software GPU); WebGL is what phones use today.
@@ -77,25 +114,31 @@ Claude Code updates this file at the end of every phase or session.
 ## How to test the latest work
 (Plain-language steps for the owner.)
 
-1. In a terminal in the project folder, run `npm install` (first time only), then `npm run dev`.
-2. Open the **Local** address it prints (usually http://localhost:5173). You're playing level 1-2, "The cargo run", now with the real look:
-   - The night is dark teal-black; the beam is a warm cone with soft edges, a glow shaft from the lamp glass, sparkles on the lit water and specks drifting in it.
-   - Ships in the dark show only an amber lantern. Light one and its hull, sail and wake fade in. After 4 s in the dark a "?" pulses above its lantern.
-   - Rocks appear only in the light (faceted, with a moving foam ring). When the light leaves, a dashed amber outline fades out over the reef-memory time.
-   - A ship home: rings on the water and a "+10" coin pop. A wreck: splinters, foam and a small camera shake.
-   - Amber arrows at the screen edge point at ships you can't see yet (try a narrow window or your phone).
-3. Press the **`** key for the debug panel. New switches:
-   - **Region**: try all five tints. Northern Ice snows, Storm Strait rains.
-   - **Weather**: clear, fog, rain or snow on any region.
-   - **Quality**: Low, Medium, High or Auto. The top line shows the frame rate and which level Auto settled on.
-   - **All buildings**: the island as it will look after the campaign (cottage, wharf, chapel, market, festival lights).
-   - **Ship parade**: all six ship types lit side by side, so you can judge whether they're easy to tell apart.
-   - **Reveal all** still outlines hidden rocks and dark ships in red.
-4. **On your phone** (same Wi-Fi), open the **Network** address with `?debug&quality=medium` on the end. Play a night and watch the fps number: Medium should hold 60. Then try `&parade` to look at the ships at phone size.
-5. **Weak-device check:** in desktop Chrome, open DevTools, go to Performance, set CPU to 6× slowdown, and reload with `?debug&quality=low`. It should stay smooth. With `quality=auto` you should see it step down after about 3 s.
-6. Screenshots of every look are in `docs/screenshots/phase-03/`. To retake them: `SCREENSHOTS=1 npx playwright test screenshots` (with no dev server running, or with it on port 5173).
-7. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run e2e`.
-8. Handy address options: `?seed=42`, `?quality=low|medium|high|auto`, `?region=northernIce`, `?weather=rain`, `?parade`, `?buildings=all`, `?reveal`, `?renderer=webgpu`.
+1. In a terminal in the project folder, run `npm run dev`, and open the **Local** address it prints (usually http://localhost:5173).
+2. **Sandbox** (try each element on its own): open http://localhost:5173/#sandbox. The panel on the right:
+   - **Ships:** pick a type, where it comes from and which harbor, then **Send ship**.
+   - **Hazards:** **Add** puts one at a random fair spot; **Clear** removes them. Lightning and storm waves are **On / Off**.
+   - **Place on tap:** pick a ship or hazard, turn it on, and tap the sea. Taps place things instead of steering until you turn it off.
+   - **Time scale:** 0.25× to 4×.
+   - **Night:** foghorn level, flare charges, buoys on reefs, second harbor, second lamp. These restart the sandbox.
+3. **Demo nights** (each group in a real night): add `?level=demo-ice` (fog bands, icebergs, a sailboat, a ferry), `?level=demo-storm` (lightning, waves, whirlpool, a tugboat), `?level=demo-cove` (smugglers, pirates), or `?level=demo-archipelago` (two harbors, second lamp) to the address.
+4. **Abilities:** tap **Horn**, **Flare** or **Switch lamp** at the bottom (keyboard: H, F, Q). The horn shows its cooldown in seconds; the flare shows charges left.
+5. **What to look for (the "recognizable in under a second" check):**
+   - **Sailboat:** drifts further with the current while dark.
+   - **Ferry:** gold lantern; losing it ends the night.
+   - **Tugboat:** while lit, rope lines to the dark ships it slows.
+   - **Smuggler:** dim lantern. Lit, it turns away, and a ring fills over 2 s. Caught: "+25", and a coast guard boat with a blue light tows it off.
+   - **Pirate:** a throbbing crimson lantern. When it hunts, a red dashed line and a closing red ring warn you for 2.5 s. Light it and it turns tail.
+   - **Fog band:** white strips; the beam visibly stops short behind them.
+   - **Iceberg:** pale blue ice, seen only in the light; it drifts.
+   - **Lightning:** a pale flicker at the top, then a white flash that lights everything.
+   - **Storm waves:** crests rolling one way, with an arrow when they turn.
+   - **Whirlpool:** a slow spiral with a red ring at its deadly core.
+   - **Two harbors:** colored dots by each lantern, colored lights round each harbor.
+   - **Colorblind:** add `&colorblind` (or tick it in the debug panel); the colors become orange and blue, plus a circle or triangle marker.
+6. On your phone (same Wi-Fi), open the **Network** address with `#sandbox` or `?level=demo-cove`, and check the buttons work one-handed.
+7. Optional checks for a developer: `npm run typecheck`, `npm run lint`, `npm run test` (about 70 s), `npm run e2e`.
+8. Handy address options: `?seed=42`, `?level=...`, `?colorblind`, `?quality=low|medium|high|auto`, `?region=...`, `?weather=...`, `?parade` (now with the pirate and the coast guard), `?reveal`, `?debug`.
 
 ## Session log
 (Date, phase, what was done, where it stopped.)
@@ -103,3 +146,12 @@ Claude Code updates this file at the end of every phase or session.
 - **2026-11-12 · Phase 01 Foundation.** Set up Vite + TypeScript (strict) + PixiJS 8 + Vitest + Playwright + ESLint + Prettier with pinned versions. Created the folder layout with a description in each folder. Built `src/app/` (viewport and scale, fixed 60 Hz game loop with catch-up cap and pause on hidden tab, scene manager with back stack and fade), the seeded RNG, angle helpers, data files for quality, viewport, loop, beam and island, colour and font tokens with local fonts, the ten render layers, and a placeholder play scene. 38 unit tests plus 3 browser smoke tests (portrait, landscape, desktop). Phase complete; owner accepted all checks on 2026-11-13 and asked for the commit.
 - **2026-11-13 · Phase 02 Core simulation.** Built the pure, deterministic simulation in `src/sim/` (world, beam, ships, reefs, spawner, rules, bonus objectives, typed events, level validator). Its data lives in `src/data/` (ships, ship behavior, difficulties, sea rules, controls, level 1-2). Input (`src/input/`): follow finger, drag to rotate, keyboard, pause. A debug renderer (`src/render/debug/`), a debug panel, and a temporary HUD and end card, so 1-2 plays start to finish. The fairness test found reefs too close to the beam's edge; added the reef range margin rule and moved 1-2's reefs. 117 unit tests (including determinism and fairness across 120 seeds × 3 difficulties × 2 lazy players) and 4 browser tests. Phase complete, waiting for the owner's play-test.
 - **2026-11-13 · Phase 03 Rendering & visuals.** Replaced the debug drawing with `src/render/Renderer.ts` and its views: water shader (GLSL + WGSL) with a Low fallback, light-map darkness with blur and "breathing" noise, beam air glow, shaft, bloom and lamp flicker, seeded low-poly reefs with foam rings and dashed memory outlines, shallows, buoys, six ship looks with upright rigs, bob, roll, wakes, lanterns, lost markers and edge arrows, the island with tower and five campaign buildings, two fog banks, rain, snow and beam spray, and event-driven effects (rings, coin pop, splinters, foam, shake). All shapes sit behind `ArtProvider` in `src/render/art/`. Region palettes, render feel numbers and Auto-quality settings are in `src/data/`. The debug panel gained Region, Weather, Quality, All buildings and Ship parade. 29 new unit tests (Auto quality, dashes, reef shapes, edge arrows, shake, blending, regions, address options) and 1 new browser test (switching every look mid-night); 146 unit + 5 browser tests pass. Measured draw calls in a busy scene: 18 per frame at High (budget 60), 14 at Medium, 9 at Low. 16 review screenshots saved. Phase complete; owner accepted on 2026-11-13.
+- **2026-11-13 · Phase 04 Ships, hazards & abilities.** Simulation:
+  - All four new ship types, plus the coast guard tow.
+  - Six hazards: fog bands, icebergs, lightning, storm waves, whirlpool, pirates.
+  - Second harbor, foghorn, flares, second lamp, bell-buoy chime, and 16 new events.
+  - The world split into smaller modules (`worldSetup`, `worldNight`, `worldEdit`, `shipForces`, `steering`).
+
+  Drawing: every new element, harbor colors and colorblind shapes, and effects for the new events. Input: H, F and Q keys, plus temporary ability buttons. Also a sandbox scene at `#sandbox` and four demo nights.
+
+  Fairness was re-run with every hazard on test levels built from 1-2. It led to the iceberg changes and the storm-wave reef margin; pirates had the 2.5 s boarding window built in. Result: 250 unit tests and 5 browser tests pass. Per the owner, further unit tests are deferred (list under Known issues). Phase complete, waiting for the owner's play-test.

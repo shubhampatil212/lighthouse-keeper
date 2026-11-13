@@ -33,6 +33,9 @@ export interface ArtTextures {
 /** The size of the glow texture's radius in texture pixels (scale a glow sprite by radius / this). */
 export const GLOW_TEXTURE_RADIUS = 64;
 
+/** Everything drawn as a vessel: the six ship types, plus pirate ships and coast guard boats. */
+export type VesselKind = ShipTypeId | 'pirate' | 'coastGuard';
+
 export interface ShipLanternArt {
   /** Height of the lantern above the water (world units). */
   height: number;
@@ -43,14 +46,18 @@ export interface ShipLanternArt {
   glowScale: number;
   /** Brightness multiplier (the smuggler's lantern is dim). */
   brightness: number;
+  /** Pulses this many times a second (the pirate's lantern throbs); 0 = steady. */
+  pulse: number;
+  /** Flashes on and off this many times a second (the coast guard's blue light); 0 = steady. */
+  blink: number;
 }
 
 export interface ShipArt {
   /** Lies flat on the water; the bow points along +x. The view rotates it by the heading. */
-  createHull(type: ShipTypeId, length: number, width: number): Container;
+  createHull(type: VesselKind, length: number, width: number): Container;
   /** Stands upright from the hull's centre; drawn facing right (the view mirrors it for ships heading left). */
-  createRig(type: ShipTypeId, length: number, width: number): Container;
-  lantern(type: ShipTypeId): ShipLanternArt;
+  createRig(type: VesselKind, length: number, width: number): Container;
+  lantern(type: VesselKind): ShipLanternArt;
 }
 
 /** A rock's outline around its centre, plus a peak point used for the low-poly faces. */
@@ -66,6 +73,8 @@ export interface ReefArt {
   createRock(shape: RockShape, lightFrom: Point): Container;
   /** A bell buoy standing upright at the origin; returns its light's height above the water. */
   createBuoy(): { body: Container; lightHeight: number };
+  /** An iceberg: pale low-poly ice with a blue side and an ice-blue edge, lit from `lightFrom`. */
+  createIceberg(shape: RockShape, lightFrom: Point): Container;
 }
 
 export interface IslandArt {
@@ -81,6 +90,10 @@ export interface IslandArt {
   towerBase: Point;
   towerHeight: number;
   createBuilding(id: IslandBuildingId): Container;
+  /** The small rocky islet a second lighthouse stands on (flat on the water, around (0, 0)). */
+  createIslet(radius: number): Container;
+  /** The second lighthouse is the main tower drawn at this scale, standing on its islet. */
+  secondTowerScale: number;
   /** Small light points on a building (windows, festival bulbs) that glow above the darkness. */
   buildingLights(id: IslandBuildingId): readonly (Point & { color: number })[];
 }

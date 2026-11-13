@@ -7,7 +7,7 @@ describe('buildRocks', () => {
   it('uses hand-placed rocks when given', () => {
     const level = testLevel({ reefs: [{ x: 100, y: 0, rocks: [{ dx: 5, dy: -5, r: 9 }] }] });
     expect(buildRocks(level, SEA)).toEqual([
-      { x: 105, y: -5, r: 9, reef: 0, memory: 0, lit: false },
+      { kind: 'rock', x: 105, y: -5, r: 9, vx: 0, vy: 0, reef: 0, memory: 0, lit: false },
     ]);
   });
 
@@ -40,7 +40,6 @@ describe('reef memory', () => {
     for (let i = 0; i < Math.round(seconds * 60); i++) {
       updateReefMemory(
         rocks,
-        1,
         () => lit,
         memory,
         DT,
@@ -67,7 +66,9 @@ describe('reef memory', () => {
     run(rocks, false, 1);
     expect(run(rocks, true, 1)).toHaveLength(0);
     run(rocks, false, 4);
-    expect(run(rocks, true, 1)).toEqual([{ type: 'reefRevealed', tick: 0, reefIndex: 0 }]);
+    expect(run(rocks, true, 1)).toEqual([
+      { type: 'reefRevealed', tick: 0, reefIndex: 0, kind: 'rock', x: 100, y: 0 },
+    ]);
   });
 });
 

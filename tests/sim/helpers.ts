@@ -1,13 +1,27 @@
 /** Shared helpers for simulation tests: scripted players and a runner. */
-import { NO_UPGRADES } from '../../src/data';
-import type { DifficultyId, LevelDef, Upgrades } from '../../src/data/types';
+import {
+  ABILITIES,
+  HAZARDS,
+  ISLAND,
+  NO_UPGRADES,
+  SEA,
+  SHIP_BEHAVIOR,
+  SHIP_TYPES,
+  SMUGGLER,
+  TUG,
+} from '../../src/data';
+import type { DifficultyId, HarborDef, LevelDef, Upgrades } from '../../src/data/types';
 import {
   NO_INTENTS,
   createWorld,
   wrapAngle,
   type Intents,
+  type LightOrigin,
+  type Rock,
+  type ShipRules,
   type SimEvent,
   type World,
+  type WorldOptions,
 } from '../../src/sim';
 
 export const DT = 1 / 60;
@@ -47,8 +61,9 @@ export function playNight(
   player: Player,
   upgrades: Upgrades = NO_UPGRADES,
   maxSeconds = 600,
+  options: WorldOptions = {},
 ): RunResult {
-  const world = createWorld(level, difficulty, upgrades, seed);
+  const world = createWorld(level, difficulty, upgrades, seed, options);
   const events: SimEvent[] = [];
   while (world.state.status === 'playing' && world.state.tick < maxSeconds * 60) {
     step(world, player);
@@ -73,3 +88,42 @@ export function testLevel(overrides: Partial<LevelDef> = {}): LevelDef {
     ...overrides,
   };
 }
+
+/** Ship rules built from the real data, with a chosen current and harbors. */
+export function shipRules(
+  currentX = 0,
+  currentY = 0,
+  harbors: readonly HarborDef[] = [{ x: 0, y: 0, radius: SEA.defaultHarborRadius }],
+): ShipRules {
+  return {
+    behavior: SHIP_BEHAVIOR,
+    types: SHIP_TYPES,
+    sea: SEA,
+    harbors,
+    currentX,
+    currentY,
+    islandRadius: ISLAND.radius,
+    smuggler: SMUGGLER,
+    tug: TUG,
+    whirlpool: HAZARDS.whirlpool,
+    icebergHeadOnCos: HAZARDS.iceberg.headOnCos,
+    foghornSpeedFactor: ABILITIES.foghorn.speedFactor,
+  };
+}
+
+/** Light functions for ship tests: everything lit from the island, or nothing lit. */
+export const lit = (): LightOrigin => ({ x: 0, y: 0 });
+export const dark = (): LightOrigin | null => null;
+
+/** A plain rock for tests. */
+export const rock = (x: number, y: number, r: number, reef = 0): Rock => ({
+  kind: 'rock',
+  x,
+  y,
+  r,
+  vx: 0,
+  vy: 0,
+  reef,
+  memory: 0,
+  lit: false,
+});

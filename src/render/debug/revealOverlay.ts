@@ -1,10 +1,10 @@
 /**
- * Debug "Reveal all": outlines hidden rocks and dark ships in red. Drawing only; the simulation never
+ * Debug "Reveal all": outlines hidden rocks and dark vessels (ships and pirates) in red. Drawing only; the simulation never
  * knows, so debugging can't change what happens.
  */
 import { Graphics, type Container } from 'pixi.js';
-import type { ShipTypeConfig, ShipTypeId } from '../../data/types';
 import type { World } from '../../sim/world';
+import type { VesselKind } from '../art/types';
 import type { ShipPose } from '../shipView';
 
 const HIDDEN = 0xff7a7a;
@@ -16,7 +16,7 @@ export interface RevealOverlay {
 
 export function createRevealOverlay(
   layer: Container,
-  types: Record<ShipTypeId, ShipTypeConfig>,
+  types: Record<VesselKind, { length: number; width: number }>,
 ): RevealOverlay {
   const g = new Graphics({ label: 'revealAll' });
   layer.addChild(g);

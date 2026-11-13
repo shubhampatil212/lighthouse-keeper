@@ -35,6 +35,21 @@ Dark behavior (all ships): speed ×0.6, heading error eases toward a random targ
 | Pirate ship | 4 | Hunts dark ships within 90 wu and wrecks them on contact. Lighting it drives it away for 5 s. |
 | Second harbor | 5 | Ships carry a destination color; lit ships steer toward their own harbor |
 
+### Rules and numbers added in phase 04
+CONTENT.md above didn't give these. They live in `src/data/` (`ships.ts`, `hazards.ts`, `abilities.ts`, `harbors.ts`). See PROGRESS.md for the reasons.
+- **Tugboat:** a lit tug slows dark ships within 50 wu (centre to centre) to ×0.5 of their speed.
+- **Smuggler:** in the dark it crosses the sea toward an exit point on the far side, 0.35–0.7 rad off straight across, so it misses the island. It knows the waters: it steers round rocks even in the dark and is never wrecked by anything. Lit, it turns away from whatever lights it. 2 s of *unbroken* light catch it. It escapes 4 wu past the spawn ring. Pirates ignore it. The coast guard boat (34 wu/s out, 14 wu/s towing) is cosmetic; the catch already counts.
+- **Fog band:** a point the beam can only reach through fog is lit only within 65% of the range. Glows, buoys and flares ignore fog.
+- **Iceberg:** a ship sailing (nearly) head-on into an iceberg, within 60° of its centre, wrecks. An iceberg drifting into a ship's side shoves it aside. Icebergs bounce to stay inside the fair zone: outer edge within the reef limit (base range − 50 wu), inner edge 10 wu clear of the harbor, and 30 wu of open water from any rock or other iceberg.
+- **Storm waves:** lit ships lean into the push and keep their course. On a storm-wave level, rocks must sit a further 16 wu inside the reef limit.
+- **Whirlpool:** pull 8 wu/s at the centre, fading to 0 at 60 wu. Lit ships steer round the core with 40 wu of room. It must sit in the beam's fair reach and not pull at a harbor.
+- **Pirate:** 18×7 wu; patrols 150 wu out at 11 wu/s, hunts at 19, flees at 22. It hunts only ships inside the beam's range. **It must chase a ship for 2.5 s before it can board** (the player's reaction window). Lighting it drives it away for 5 s after the light last touched it. It never wrecks.
+- **Second harbor:** each ship carries a harbor index. Ships bound elsewhere steer round the island and never sail onto it. Harbors must sit within the beam's fair reach. Colors: red and blue. Colorblind mode uses orange and blue, plus a circle or triangle marker.
+- **Foghorn:** slows every ship within 140 wu of the island, at the moment it sounds, to ×0.4 of its own speed for 3 s. The current and waves still push. Cooldown: 12 s at level 1, 10 s at level 2, 8 s at level 3.
+- **Flares:** charges per night = the flare upgrade level. Each lights the whole map for 1.5 s.
+- **Second lamp:** a second tower on a 10 wu islet, with a 36 wu glow and the same beam stats as the main lamp. The lamp you aren't steering sweeps at 0.5 rad/s. A lamp you take over stops where it is.
+- **Bell buoy:** rings (`buoyRang`) when a ship sails into its light.
+
 ## 4. Upgrades (Harbor shop)
 Cost formula: `round5(base × (1 + level × 0.6))`
 

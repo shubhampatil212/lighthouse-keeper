@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { LEVEL_1_2, LEVELS } from '../../src/data';
+import { DEMO_LEVELS, LEVEL_1_2, LEVELS } from '../../src/data';
 import { validateLevel } from '../../src/sim';
+import { HAZARD_LEVELS } from './hazardLevels';
 import { testLevel } from './helpers';
 
 describe('level data', () => {
-  for (const level of Object.values(LEVELS)) {
+  for (const level of [...Object.values(LEVELS), ...Object.values(DEMO_LEVELS)]) {
     it(`level ${level.id} passes the layout and fairness checks`, () => {
       expect(validateLevel(level)).toEqual([]);
     });
@@ -15,6 +16,14 @@ describe('level data', () => {
     expect(LEVEL_1_2.ships.filter((s) => s.type === 'cargo')).toHaveLength(2);
     expect(LEVEL_1_2.bonus).toEqual({ kind: 'saveAllOfType', type: 'cargo' });
   });
+});
+
+describe('hazard test levels', () => {
+  for (const level of HAZARD_LEVELS) {
+    it(`${level.id} passes the layout and fairness checks`, () => {
+      expect(validateLevel(level)).toEqual([]);
+    });
+  }
 });
 
 describe('validateLevel', () => {

@@ -11,6 +11,15 @@ const LIGHT_FACE = 0x8f877a;
 const TOP_LIFT = 1.6;
 const SIDE_DROP = 2.2;
 
+const ICE_SIDE = 0x2f6a8c;
+const ICE_DARK_FACE = 0x8fbfd6;
+const ICE_LIGHT_FACE = 0xf1fbff;
+/** The ice-blue edge an iceberg shows when the light is on it. */
+export const ICE_EDGE = 0x9fe6ff;
+/** Icebergs stand taller out of the water than rocks. */
+const ICE_LIFT = 3.2;
+const ICE_DROP = 3;
+
 const flat = (points: readonly Point[], dx: number, dy: number): number[] =>
   points.flatMap((p) => [p.x + dx, p.y + dy]);
 
@@ -30,6 +39,22 @@ export function createReefArt(): ReefArt {
           mixColor(DARK_FACE, LIGHT_FACE, shade),
         );
       });
+      return g;
+    },
+    createIceberg(shape: RockShape, lightFrom: Point) {
+      const g = new Graphics();
+      const { points, peak } = shape;
+      g.poly(flat(points, 0, ICE_DROP)).fill(ICE_SIDE);
+      g.poly(flat(points, 0, -ICE_LIFT)).fill(0xcfe9f4);
+      const top = { x: peak.x, y: peak.y - ICE_LIFT * 1.6 };
+      points.forEach((a, i) => {
+        const b = points[(i + 1) % points.length] ?? a;
+        const shade = facetLight(peak, a, b, lightFrom);
+        g.poly([top.x, top.y, a.x, a.y - ICE_LIFT, b.x, b.y - ICE_LIFT]).fill(
+          mixColor(ICE_DARK_FACE, ICE_LIGHT_FACE, shade),
+        );
+      });
+      g.poly(flat(points, 0, -ICE_LIFT)).stroke({ color: ICE_EDGE, width: 1.2, alpha: 0.9 });
       return g;
     },
     createBuoy() {

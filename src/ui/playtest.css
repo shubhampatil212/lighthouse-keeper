@@ -69,3 +69,39 @@
   outline: 2px solid var(--ui-accent);
   outline-offset: 3px;
 }
+
+/* Temporary ability buttons (phase 04): bottom centre, at least 44 px, one thumb can reach them. */
+.playtest-abilities {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+
+.playtest-abilities button {
+  min-width: 72px;
+  min-height: var(--tap-min);
+  padding: 0 14px;
+  border: 1px solid var(--ui-panel-line);
+  border-radius: var(--radius);
+  background: var(--ui-panel);
+  color: var(--ui-text);
+  font: 700 0.95rem var(--font-ui);
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.playtest-abilities button[hidden] {
+  display: none;
+}
+
+.playtest-abilities button.cooling {
+  opacity: 0.5;
+}
+
+.playtest-abilities button:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 3px;
+}

@@ -23,6 +23,8 @@ export interface DebugSettings {
   allBuildings: boolean;
   /** All six ship types side by side, lit. */
   parade: boolean;
+  /** Colorblind harbor colors and shapes (the real setting arrives in phase 08). */
+  colorblind: boolean;
 }
 
 export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_DEBUG_SETTINGS: DebugSettings = {
   quality: 'auto',
   allBuildings: false,
   parade: false,
+  colorblind: false,
 };
 
 export interface DebugPanelHandlers {
@@ -163,8 +166,11 @@ export function createDebugPanel(
   const parade = checkbox('Ship parade', (on) => {
     change({ parade: on });
   });
+  const colorblind = checkbox('Colorblind', (on) => {
+    change({ colorblind: on });
+  });
   const view = document.createElement('fieldset');
-  view.append(reveal.element, buildings.element, parade.element);
+  view.append(reveal.element, buildings.element, parade.element, colorblind.element);
 
   const region = select(
     'Region ',
@@ -283,13 +289,16 @@ export function createDebugPanel(
         `level ${setup.level.id} · ${setup.difficultyId} · seed ${state.seed}\n` +
         `tick ${state.tick} · ${state.time.toFixed(1)} s · ${status}\n` +
         `ships: ${state.ships.length} at sea · ${state.spawnIndex}/${setup.spawns.length} spawned\n` +
-        `saved ${state.saved} · wrecked ${state.wrecked}/${setup.difficulty.wreckAllowance} · coins ${state.coins}`;
+        `saved ${state.saved} · wrecked ${state.wrecked}/${setup.difficulty.wreckAllowance} · coins ${state.coins}\n` +
+        `caught ${state.caught} · escaped ${state.escaped} · pirates ${state.pirates.length} · ` +
+        `horn ${state.abilities.foghornCooldown.toFixed(1)} s · flares ${state.abilities.flares}`;
     },
     setSettings(next) {
       settings = next;
       reveal.set(next.revealAll);
       buildings.set(next.allBuildings);
       parade.set(next.parade);
+      colorblind.set(next.colorblind);
       region.set(next.region);
       weather.set(next.weather);
       quality.set(next.quality);

@@ -13,9 +13,12 @@ export function failReason(
   return null;
 }
 
-/** The night is over when every scheduled ship is either home or wrecked. */
-export function allShipsResolved(total: number, saved: number, wrecked: number): boolean {
-  return saved + wrecked >= total;
+/**
+ * The night is over when every scheduled ship is resolved: home, wrecked, or (smugglers) caught or
+ * escaped.
+ */
+export function allShipsResolved(total: number, resolved: number): boolean {
+  return resolved >= total;
 }
 
 /** ★ finish; ★★ few wrecks; ★★★ fewer still, plus the bonus objective. A failed night earns none. */

@@ -4,4 +4,6 @@
  */
 export const SCENE = {
   play: 'play',
+  /** Debug only: #sandbox. */
+  sandbox: 'sandbox',
 } as const;

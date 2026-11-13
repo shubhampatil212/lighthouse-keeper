@@ -4,13 +4,19 @@
  */
 import './playtest.css';
 import type { LevelDef } from '../data/types';
+import type { ActionIntent } from '../input/controller';
 import type { LevelResult } from '../sim/events';
 import { STRINGS } from './strings';
 
 export interface HudInfo {
   saved: number;
   spareHulls: number;
+  caught: number;
   paused: boolean;
+  /** Abilities: null hides the button (not owned / no second lamp). */
+  foghorn: { cooldown: number } | null;
+  flares: number | null;
+  switchLamp: boolean;
 }
 
 export interface PlaytestUi {
@@ -20,7 +26,31 @@ export interface PlaytestUi {
   hideEnd(): void;
 }
 
-export function createPlaytestUi(parent: HTMLElement, onPlayAgain: () => void): PlaytestUi {
+interface AbilityButton {
+  button: HTMLButtonElement;
+  label: string;
+}
+
+function abilityButton(text: string, onPress: () => void): AbilityButton {
+  const button = Object.assign(document.createElement('button'), {
+    type: 'button',
+    textContent: text,
+  });
+  button.hidden = true;
+  // pointerdown, not click: on a phone the finger is usually already busy steering.
+  button.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onPress();
+  });
+  return { button, label: '' };
+}
+
+export function createPlaytestUi(
+  parent: HTMLElement,
+  onPlayAgain: () => void,
+  onAction: (action: ActionIntent) => void = () => undefined,
+): PlaytestUi {
   const hud = document.createElement('p');
   hud.className = 'playtest-hud';
   hud.setAttribute('aria-live', 'polite');
@@ -43,7 +73,38 @@ export function createPlaytestUi(parent: HTMLElement, onPlayAgain: () => void): 
   });
   again.addEventListener('click', onPlayAgain);
   card.append(heading, stars, summary, bonus, again);
-  parent.append(hud, card);
+
+  // Temporary ability buttons (phase 04): bottom of the screen, thumb-sized.
+  const bar = document.createElement('div');
+  bar.className = 'playtest-abilities';
+  const horn = abilityButton(STRINGS.abilityFoghorn, () => {
+    onAction('foghorn');
+  });
+  const flare = abilityButton(STRINGS.abilityFlare, () => {
+    onAction('flare');
+  });
+  const lamp = abilityButton(STRINGS.abilitySwitchLamp, () => {
+    onAction('switchLamp');
+  });
+  bar.append(horn.button, flare.button, lamp.button);
+  parent.append(hud, bar, card);
+
+  const setButton = (
+    b: AbilityButton,
+    shown: boolean,
+    label: string,
+    text: string,
+    ready: boolean,
+  ) => {
+    b.button.hidden = !shown;
+    if (!shown) return;
+    if (b.label !== label) {
+      b.label = label;
+      b.button.setAttribute('aria-label', label);
+      b.button.textContent = text;
+    }
+    b.button.classList.toggle('cooling', !ready);
+  };
 
   let level: LevelDef | null = null;
   let lastLine = '';
@@ -54,10 +115,36 @@ export function createPlaytestUi(parent: HTMLElement, onPlayAgain: () => void): 
       title.textContent = STRINGS.levelTitle(next.id, next.name);
     },
     showHud(info) {
+      const caught = info.caught > 0 ? ` · ${STRINGS.hudCaught(info.caught)}` : '';
       const text = info.paused
         ? STRINGS.paused
-        : `${STRINGS.hudSaved(info.saved)} · ${STRINGS.hudSpareHulls(info.spareHulls)}`;
+        : `${STRINGS.hudSaved(info.saved)} · ${STRINGS.hudSpareHulls(info.spareHulls)}${caught}`;
       if (text !== lastLine) line.textContent = lastLine = text;
+
+      const h = info.foghorn;
+      const wait = h ? Math.ceil(h.cooldown) : 0;
+      setButton(
+        horn,
+        h !== null,
+        STRINGS.abilityFoghornLabel(wait),
+        wait > 0 ? `${STRINGS.abilityFoghorn} ${wait}` : STRINGS.abilityFoghorn,
+        wait === 0,
+      );
+      const charges = info.flares ?? 0;
+      setButton(
+        flare,
+        info.flares !== null,
+        STRINGS.abilityFlareLabel(charges),
+        `${STRINGS.abilityFlare} ×${charges}`,
+        charges > 0,
+      );
+      setButton(
+        lamp,
+        info.switchLamp,
+        STRINGS.abilitySwitchLampLabel,
+        STRINGS.abilitySwitchLamp,
+        true,
+      );
     },
     showEnd(result) {
       heading.textContent =

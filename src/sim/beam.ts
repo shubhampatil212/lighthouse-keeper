@@ -1,6 +1,7 @@
 /** The lighthouse beam: turn-limited aiming, and the test for whether a point is in the light. */
 import type { BeamConfig, BeamFeelConfig, BeamUpgradeConfig, Upgrades } from '../data/types';
 import { wrapAngle } from './angle';
+import { throughFog, type FogBand } from './fog';
 
 /** The beam's stats after upgrades. */
 export interface BeamStats {
@@ -23,15 +24,35 @@ export interface BuoyLight {
   radius: number;
 }
 
+/** One lighthouse lamp: where it stands, where its beam points, and the glow always lit around it. */
+export interface LampLight {
+  x: number;
+  y: number;
+  angle: number;
+  glowRadius: number;
+}
+
 /** Everything that can light a point this tick. */
 export interface LightSources {
-  angle: number;
+  /** The island's lamp first, then the second lamp if the level has one. Both share the beam stats. */
+  lamps: readonly LampLight[];
   stats: BeamStats;
   edgeTolerance: number;
   buoys: readonly BuoyLight[];
   /** A flare or lightning lights the whole map. */
   mapLit: boolean;
+  /** Fog bands: the beam reaches only `fogRangeFactor` of its range through them. */
+  fog: readonly FogBand[];
+  fogRangeFactor: number;
 }
+
+/** Where the light falling on a point comes from (a lamp, a buoy, or the island for a map-wide light). */
+export interface LightOrigin {
+  x: number;
+  y: number;
+}
+
+const ISLAND_ORIGIN: LightOrigin = { x: 0, y: 0 };
 
 const clampLevel = (level: number, max: number): number => Math.max(0, Math.min(max, level));
 
@@ -75,17 +96,29 @@ export function stepBeam(
   beam.angle = wrapAngle(beam.angle + Math.sign(diff) * step);
 }
 
-/** True if (x, y) is lit by the island glow, the beam cone, a buoy, or a map-wide light. */
-export function isLit(light: LightSources, x: number, y: number): boolean {
-  if (light.mapLit) return true;
-  const d = Math.hypot(x, y);
-  if (d < light.stats.glowRadius) return true;
-  if (d <= light.stats.range) {
-    const off = Math.abs(wrapAngle(Math.atan2(y, x) - light.angle));
-    if (off <= light.stats.halfAngle + light.edgeTolerance / Math.max(d, 1)) return true;
+/**
+ * What lights (x, y): a lamp's glow or beam cone, a buoy, or a map-wide light. Returns where that
+ * light comes from (smugglers and pirates flee away from it), or null if the point is dark.
+ */
+export function lightAt(light: LightSources, x: number, y: number): LightOrigin | null {
+  if (light.mapLit) return ISLAND_ORIGIN;
+  for (const lamp of light.lamps) {
+    const dx = x - lamp.x;
+    const dy = y - lamp.y;
+    const d = Math.hypot(dx, dy);
+    if (d < lamp.glowRadius) return lamp;
+    if (d > light.stats.range) continue;
+    const off = Math.abs(wrapAngle(Math.atan2(dy, dx) - lamp.angle));
+    if (off > light.stats.halfAngle + light.edgeTolerance / Math.max(d, 1)) continue;
+    const foggy = light.fog.length > 0 && throughFog(light.fog, lamp.x, lamp.y, x, y);
+    if (!foggy || d <= light.stats.range * light.fogRangeFactor) return lamp;
   }
   for (const buoy of light.buoys) {
-    if (Math.hypot(x - buoy.x, y - buoy.y) < buoy.radius) return true;
+    if (Math.hypot(x - buoy.x, y - buoy.y) < buoy.radius) return buoy;
   }
-  return false;
+  return null;
+}
+
+export function isLit(light: LightSources, x: number, y: number): boolean {
+  return lightAt(light, x, y) !== null;
 }

@@ -1,19 +1,39 @@
 /**
- * Layer 9, effects. Each one answers a simulation event: a ship home gives ripple rings and a coin pop,
- * a wreck gives splinters, a foam burst, a dark ring and a small camera shake (none with reduced
- * motion), a revealed reef gives a puff of foam, and a ship's first light a small ring.
+ * Layer 9, effects: ripple rings, foam bursts, splinters (or ice shards), coin pops and camera shake
+ * (none with reduced motion). Which effect answers which simulation event is in effectEvents.ts.
  */
 import { Container, Graphics, Text } from 'pixi.js';
 import type { RenderFeelConfig } from '../data/types';
 import type { SimEvent } from '../sim/events';
 import type { World } from '../sim/world';
 import type { ArtTextures, Point } from './art/types';
-import { PALETTE } from './palette';
+import { reactToEvent } from './effectEvents';
 import { createParticles, type ParticleBudget } from './particles';
 import { shakeOffset } from './shake';
 
+/** The building blocks effectEvents.ts combines into a response to each event. */
+export interface FxKit {
+  readonly feel: RenderFeelConfig;
+  /** A ring on the water; `shrink` makes it close in instead of spreading (a whirlpool). */
+  ring(
+    x: number,
+    y: number,
+    radius: number,
+    color: number,
+    life: number,
+    delay?: number,
+    shrink?: boolean,
+  ): void;
+  burst(x: number, y: number, count: number, speed: number, tint: number): void;
+  /** Flying pieces: wood splinters by default, or any tints (ice shards). */
+  splinters(x: number, y: number, tints?: readonly number[]): void;
+  pop(x: number, y: number, text: string, color: number): void;
+  shake(): void;
+}
+
 export interface Effects {
-  onEvent(event: SimEvent, world: World): void;
+  /** `at`: where the vessel the event is about was last drawn, if it has left the sea. */
+  onEvent(event: SimEvent, world: World, at?: Point): void;
   update(dt: number): void;
   /** Current camera shake offset (CSS px). */
   shake(): Point;
@@ -31,6 +51,7 @@ interface Ring {
   radius: number;
   color: number;
   width: number;
+  shrink: boolean;
 }
 
 interface CoinPop {
@@ -68,8 +89,9 @@ export function createEffects(
     color: number,
     life: number,
     delay = 0,
+    shrink = false,
   ): void => {
-    rings.push({ x, y, age: -delay, life, radius, color, width: 1.6 });
+    rings.push({ x, y, age: -delay, life, radius, color, width: 1.6, shrink });
   };
 
   const burst = (x: number, y: number, count: number, speed: number, tint: number): void => {
@@ -88,7 +110,7 @@ export function createEffects(
     }
   };
 
-  const wreck = (x: number, y: number): void => {
+  const splinterBurst = (x: number, y: number, tints: readonly number[]): void => {
     for (let i = 0; i < feel.splinterCount; i++) {
       const m = splinters.spawn();
       if (!m) break;
@@ -101,27 +123,20 @@ export function createEffects(
       m.spin = (Math.random() - 0.5) * 10;
       m.life = feel.splinterSeconds * (0.7 + Math.random() * 0.3);
       m.a = 0.12 + Math.random() * 0.1;
-      m.particle.tint = SPLINTER_COLORS[i % SPLINTER_COLORS.length] ?? 0x8a6a45;
+      m.particle.tint = tints[i % tints.length] ?? 0x8a6a45;
     }
-    burst(x, y, feel.foamBurstCount, 26, PALETTE.seaCrest);
-    ring(x, y, feel.rippleRadius * 0.8, PALETTE.seaCrest, feel.rippleSeconds);
-    if (!reducedMotion) shakeAge = 0;
   };
 
-  const saved = (x: number, y: number, coins: number): void => {
-    ring(x, y, feel.rippleRadius, PALETTE.lamp, feel.rippleSeconds);
-    ring(x, y, feel.rippleRadius * 0.7, PALETTE.lampHot, feel.rippleSeconds, 0.18);
-    burst(x, y, 6, 14, PALETTE.lampHot);
-    if (coins <= 0) return;
+  const pop = (x: number, y: number, label: string, color: number): void => {
     const text = new Text({
-      text: `+${coins}`,
+      text: label,
       anchor: 0.5,
       resolution: textResolution,
       style: {
         fontFamily: 'Karla, sans-serif',
         fontWeight: '700',
         fontSize: 13,
-        fill: PALETTE.lamp,
+        fill: color,
         stroke: { color: 0x0a222c, width: 2.5 },
       },
     });
@@ -129,29 +144,22 @@ export function createEffects(
     popList.push({ text, x, y: y - 14, age: 0 });
   };
 
+  const kit: FxKit = {
+    feel,
+    ring,
+    burst,
+    splinters: (x, y, tints = SPLINTER_COLORS) => {
+      splinterBurst(x, y, tints);
+    },
+    pop,
+    shake: () => {
+      if (!reducedMotion) shakeAge = 0;
+    },
+  };
+
   return {
-    onEvent(event, world) {
-      switch (event.type) {
-        case 'shipSaved':
-          saved(event.x, event.y, event.coins);
-          break;
-        case 'shipWrecked':
-          wreck(event.x, event.y);
-          break;
-        case 'reefRevealed': {
-          const reef = world.setup.reefs[event.reefIndex];
-          if (reef)
-            burst(reef.x, reef.y, Math.round(feel.foamBurstCount / 2), 16, PALETTE.seaCrest);
-          break;
-        }
-        case 'shipLit': {
-          const ship = world.state.ships.find((s) => s.id === event.shipId);
-          if (ship) ring(ship.x, ship.y, 12, PALETTE.lamp, 0.6);
-          break;
-        }
-        default:
-          break;
-      }
+    onEvent(event, world, at) {
+      reactToEvent(event, world, at, kit);
     },
     update(dt) {
       shakeAge += dt;
@@ -167,8 +175,9 @@ export function createEffects(
         if (r.age < 0) continue;
         const t = r.age / r.life;
         const eased = 1 - (1 - t) * (1 - t);
+        const size = r.shrink ? r.radius * (1 - eased) + 2 : 3 + eased * r.radius;
         ringGraphics
-          .ellipse(r.x, r.y, 3 + eased * r.radius, (3 + eased * r.radius) * 0.85)
+          .ellipse(r.x, r.y, size, size * 0.85)
           .stroke({ color: r.color, width: r.width * (1 - t * 0.6), alpha: (1 - t) * 0.9 });
       }
       splinters.update((m) => {

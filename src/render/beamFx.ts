@@ -1,7 +1,8 @@
 /**
  * Layer 7, the beam's light effects (additive, drawn above the darkness): the beam glowing in the night
  * air, the volumetric shaft from the lamp glass down along the beam, the lamp's bloom, and the lamp
- * glass flickering slightly.
+ * glass flickering slightly. A second lighthouse gets its own glow in the air, bloom and glass (no
+ * shaft: it's smaller and further away).
  */
 import { Container, MeshSimple, Sprite, Texture } from 'pixi.js';
 import type { RenderFeelConfig } from '../data/types';
@@ -13,6 +14,12 @@ import { PALETTE } from './palette';
 export interface BeamFx {
   readonly container: Container;
   draw(angle: number, beam: BeamStats, time: number): void;
+  /** The second lighthouse's beam (null = the level has none). */
+  drawSecond(
+    lamp: { x: number; y: number; angle: number } | null,
+    beam: BeamStats,
+    time: number,
+  ): void;
   destroy(): void;
 }
 
@@ -65,17 +72,39 @@ export function createBeamFx(art: ArtProvider, feel: RenderFeelConfig): BeamFx {
   const lamp = art.island.lampPoint;
   bloom.position.set(lamp.x, lamp.y);
 
+  // The second lighthouse: the main tower's lamp drawn smaller, standing on its islet.
+  const small = art.island.secondTowerScale;
+  const second = new Container({ label: 'secondBeamFx', visible: false });
+  const air2 = new Sprite({ label: 'beamAir2', blendMode: 'add' });
+  air2.tint = PALETTE.lamp;
+  air2.alpha = 0.2;
+  const bloom2 = new Sprite({ texture: art.textures.glow, anchor: 0.5, blendMode: 'add' });
+  bloom2.tint = 0xffe6b0;
+  bloom2.position.set(lamp.x * small, lamp.y * small);
+  const glass2 = art.island.createLampGlass();
+  glass2.blendMode = 'add';
+  glass2.tint = PALETTE.lampHot;
+  glass2.scale.set(small);
+  const lamp2Glass = new Container();
+  lamp2Glass.addChild(bloom2, glass2);
+  second.addChild(air2, lamp2Glass);
+  container.addChild(second);
+
+  const coneAir = (sprite: Sprite, beam: BeamStats, angle: number): void => {
+    const shape = art.beamCone(beam.halfAngle, feel.beamHaloWidth, 0);
+    sprite.texture = shape.texture;
+    sprite.anchor.set(shape.anchorX, shape.anchorY);
+    sprite.scale.set(
+      (shape.reach * beam.range) / shape.texture.width,
+      (shape.heightPerRange * beam.range) / shape.texture.height,
+    );
+    sprite.rotation = angle;
+  };
+
   return {
     container,
     draw(angle, beam, time) {
-      const shape = art.beamCone(beam.halfAngle, feel.beamHaloWidth, 0);
-      air.texture = shape.texture;
-      air.anchor.set(shape.anchorX, shape.anchorY);
-      air.scale.set(
-        (shape.reach * beam.range) / shape.texture.width,
-        (shape.heightPerRange * beam.range) / shape.texture.height,
-      );
-      air.rotation = angle;
+      coneAir(air, beam, angle);
 
       const reach = beam.range * feel.shaftReach;
       const h = beam.halfAngle * 0.9;
@@ -94,6 +123,16 @@ export function createBeamFx(art: ArtProvider, feel: RenderFeelConfig): BeamFx {
       bloom.scale.set((feel.bloomRadius * (1 + f)) / GLOW_TEXTURE_RADIUS);
       bloom.alpha = 0.85 + f;
       glass.alpha = 0.55 + f * 3;
+    },
+    drawSecond(lampState, beam, time) {
+      second.visible = lampState !== null;
+      if (!lampState) return;
+      second.position.set(lampState.x, lampState.y);
+      coneAir(air2, beam, lampState.angle);
+      const f = flicker(time + 3.1) * feel.lampFlicker;
+      bloom2.scale.set((feel.bloomRadius * small * (1 + f)) / GLOW_TEXTURE_RADIUS);
+      bloom2.alpha = 0.8 + f;
+      glass2.alpha = 0.55 + f * 3;
     },
     destroy() {
       container.destroy({ children: true });

@@ -235,8 +235,21 @@ const LIGHTS: Record<IslandBuildingId, readonly (Point & { color: number })[]> =
   festivalLights: festivalBulbs(),
 };
 
+/** A small rocky islet with a tuft of grass (no jetty). */
+function islet(radius: number): Container {
+  const r = radius;
+  const g = new Graphics({ label: 'islet' });
+  g.poly(lumpy(21, 0, 3, r + 4, (r + 3) * 0.9, 12)).fill({ color: PALETTE.seaCrest, alpha: 0.22 });
+  g.poly(lumpy(22, 0, 3, r, r * 0.85, 11)).fill(0x2b2925);
+  g.poly(lumpy(23, 0, 1, r, r * 0.85, 11)).fill(0x4a453f);
+  g.poly(lumpy(24, -1, -1, r * 0.6, r * 0.45, 9)).fill(PALETTE.moss);
+  return g;
+}
+
 export function createIslandArt(): IslandArt {
   return {
+    createIslet: islet,
+    secondTowerScale: 0.62,
     createGround: ground,
     createTower: tower,
     createLampGlass: lampGlass,

@@ -4,25 +4,13 @@ import type { ShipTypeId } from '../../src/data/types';
 import {
   spawnShip,
   stepShip,
+  type LightOrigin,
   type Rock,
   type Ship,
   type ShipFate,
-  type ShipRules,
   type SimEvent,
 } from '../../src/sim';
-import { DT } from './helpers';
-
-const rules = (currentX = 0, currentY = 0): ShipRules => ({
-  behavior: SHIP_BEHAVIOR,
-  types: SHIP_TYPES,
-  sea: SEA,
-  harbors: [{ x: 0, y: 0, radius: SEA.defaultHarborRadius }],
-  currentX,
-  currentY,
-});
-
-const lit = (): boolean => true;
-const dark = (): boolean => false;
+import { DT, dark, lit, rock, shipRules as rules } from './helpers';
 
 /** A ship on the spawn ring due east of the island. */
 function eastShip(type: ShipTypeId = 'fishing', seed = 1, r = rules()): Ship {
@@ -34,7 +22,7 @@ function eastShip(type: ShipTypeId = 'fishing', seed = 1, r = rules()): Ship {
 function sail(
   ship: Ship,
   rocks: Rock[],
-  light: (x: number, y: number) => boolean,
+  light: (x: number, y: number) => LightOrigin | null,
   seconds: number,
   r = rules(),
 ): { fate: ShipFate; events: SimEvent[] } {
@@ -45,15 +33,6 @@ function sail(
   }
   return { fate, events };
 }
-
-const rock = (x: number, y: number, r: number): Rock => ({
-  x,
-  y,
-  r,
-  reef: 0,
-  memory: 0,
-  lit: false,
-});
 
 describe('spawnShip', () => {
   it('starts on the spawn ring at the type speed', () => {

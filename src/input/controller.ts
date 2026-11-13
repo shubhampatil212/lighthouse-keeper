@@ -8,9 +8,14 @@ import type { BeamState } from '../sim/beam';
 import type { Intents } from '../sim/intents';
 import { aimFromPointer, dialDelta, keyboardAim, type ScreenCenter } from './aim';
 
+/** One-shot actions a button (or key) can ask for. */
+export type ActionIntent = 'foghorn' | 'flare' | 'switchLamp' | 'pause';
+
 export interface InputController {
   /** Call once per simulation tick. Button presses are used up by the read. */
   read(beam: Readonly<BeamState>): Intents;
+  /** An on-screen button was pressed; the next read() carries it. */
+  press(action: ActionIntent): void;
   style: ControlStyle;
   dispose(): void;
 }
@@ -24,6 +29,15 @@ export interface PointerSurface extends EventTarget {
 const LEFT_KEYS = new Set(['ArrowLeft', 'a', 'A']);
 const RIGHT_KEYS = new Set(['ArrowRight', 'd', 'D']);
 const PAUSE_KEYS = new Set(['Escape', 'p', 'P']);
+/** Ability keys: H = horn, F = flare, Q = switch lamp. */
+const ACTION_KEYS: Readonly<Record<string, ActionIntent>> = {
+  h: 'foghorn',
+  H: 'foghorn',
+  f: 'flare',
+  F: 'flare',
+  q: 'switchLamp',
+  Q: 'switchLamp',
+};
 
 export function createInputController(
   surface: PointerSurface,
@@ -40,7 +54,7 @@ export function createInputController(
   let left = false;
   let right = false;
   let keyReleased = false;
-  let pause = false;
+  const pressed = new Set<ActionIntent>();
 
   const angleAt = (event: PointerEvent): number | null => {
     const rect = surface.getBoundingClientRect();
@@ -87,7 +101,11 @@ export function createInputController(
     const { key, repeat } = e as KeyboardEvent;
     if (LEFT_KEYS.has(key)) left = true;
     else if (RIGHT_KEYS.has(key)) right = true;
-    else if (PAUSE_KEYS.has(key) && !repeat) pause = true;
+    else if (PAUSE_KEYS.has(key) && !repeat) pressed.add('pause');
+    else if (key in ACTION_KEYS && !repeat) {
+      const action = ACTION_KEYS[key];
+      if (action) pressed.add(action);
+    }
   };
   const onKeyUp = (e: Event): void => {
     const { key } = e as KeyboardEvent;
@@ -116,12 +134,21 @@ export function createInputController(
       if (aimAngle === null && keyReleased) aimAngle = beam.angle; // stop where it is
       if (pointerAim !== null) aimAngle = pointerAim;
       if (dragSweep !== 0) aimAngle = beam.target + dragSweep;
-      const intents: Intents = { aimAngle, foghorn: false, flare: false, pause };
+      const intents: Intents = {
+        aimAngle,
+        foghorn: pressed.has('foghorn'),
+        flare: pressed.has('flare'),
+        switchLamp: pressed.has('switchLamp'),
+        pause: pressed.has('pause'),
+      };
       pointerAim = null;
       dragSweep = 0;
       keyReleased = false;
-      pause = false;
+      pressed.clear();
       return intents;
+    },
+    press(action) {
+      pressed.add(action);
     },
     get style() {
       return style;

@@ -1,7 +1,9 @@
 /**
- * Ships: lit ships see nearby rocks and steer around them toward the harbor at full speed.
+ * Ships: lit ships see nearby rocks and steer around them toward their harbor at full speed.
  * Dark ships drift: their heading wanders, they slow down and the current pushes them
  * (docs/GDD.md §3.2, docs/CONTENT.md §2; steering ported from the prototype's updShips).
+ * Smugglers are the exception: they cross the sea toward an exit point, flee the light, and are
+ * caught after 2 s of unbroken light.
  */
 import type {
   HarborDef,
@@ -9,11 +11,16 @@ import type {
   ShipBehaviorConfig,
   ShipTypeConfig,
   ShipTypeId,
+  SmugglerConfig,
+  TugConfig,
+  WhirlpoolConfig,
 } from '../data/types';
-import { wrapAngle } from './angle';
-import type { Emit } from './events';
+import type { LightOrigin } from './beam';
+import type { Emit, WreckCause } from './events';
 import { rockAt, type Rock } from './reefs';
 import { createRng } from './rng';
+import { atIsland, driftWithSea, keepOffIsland, shovedByIceberg } from './shipForces';
+import { leanIntoPush, litHeading, turnToward, type Obstacle } from './steering';
 
 export interface WakePoint {
   x: number;
@@ -34,6 +41,8 @@ export interface Ship {
   lit: boolean;
   /** Seconds since the ship was last lit. */
   darkTime: number;
+  /** Seconds lit without a break (a smuggler is caught at SMUGGLER.catchSeconds). */
+  litTime: number;
   /** Shown with a "?" marker after lostAfter seconds in the dark. */
   lost: boolean;
   /** Dark drift: current heading error, the value it eases toward, and time until a new one. */
@@ -42,6 +51,16 @@ export interface Ship {
   errorTimer: number;
   /** Each ship has its own random stream, so lighting one ship never changes how another drifts. */
   rngState: number;
+  /** Smugglers only: the point past the spawn ring they're slipping away to. Null for every other ship. */
+  exit: WakePoint | null;
+  /** Seconds left of the foghorn's slow. */
+  hornTimer: number;
+  /** Id of the lit tugboat slowing this ship, or 0. */
+  towedBy: number;
+  /** Index of the whirlpool pulling it, or -1. */
+  whirlpool: number;
+  /** Index of the bell buoy whose circle it's in, or -1. */
+  buoy: number;
   wake: WakePoint[];
   wakeTimer: number;
 }
@@ -54,11 +73,38 @@ export interface ShipRules {
   /** Current drift in world units per second, after the difficulty multiplier. */
   currentX: number;
   currentY: number;
+  islandRadius: number;
+  smuggler: SmugglerConfig;
+  tug: TugConfig;
+  whirlpool: WhirlpoolConfig;
+  /** See IcebergConfig.headOnCos. */
+  icebergHeadOnCos: number;
+  /** Speed multiplier while the foghorn's slow lasts. */
+  foghornSpeedFactor: number;
 }
 
-export type ShipFate = { kind: 'sailing' } | { kind: 'saved' } | { kind: 'wrecked'; rock: Rock };
+/** What the sea does to every ship this tick: storm waves and whirlpools. */
+export interface SeaForces {
+  pushX: number;
+  pushY: number;
+  whirlpools: readonly WakePoint[];
+}
+
+export const CALM_SEA: SeaForces = { pushX: 0, pushY: 0, whirlpools: [] };
+
+export type ShipFate =
+  | { kind: 'sailing' }
+  | { kind: 'saved' }
+  | { kind: 'wrecked'; cause: WreckCause; reefIndex: number | null }
+  | { kind: 'caught' }
+  | { kind: 'escaped' };
 
 const SAILING: ShipFate = { kind: 'sailing' };
+const SAVED: ShipFate = { kind: 'saved' };
+const CAUGHT: ShipFate = { kind: 'caught' };
+const ESCAPED: ShipFate = { kind: 'escaped' };
+
+const isSmuggler = (ship: Ship): boolean => ship.exit !== null;
 
 export function spawnShip(
   id: number,
@@ -67,121 +113,159 @@ export function spawnShip(
   speedMultiplier: number,
   rngSeed: number,
   rules: ShipRules,
+  harborIndex = 0,
 ): Ship {
   const rng = createRng(rngSeed);
   const { behavior, sea } = rules;
   const x = Math.cos(angle) * sea.spawnRadius;
   const y = Math.sin(angle) * sea.spawnRadius;
-  const harbor = rules.harbors[0] ?? { x: 0, y: 0 };
+  const jitter = rng.range(-behavior.spawnHeadingJitter, behavior.spawnHeadingJitter);
+  const error = rng.range(-behavior.spawnErrorRange, behavior.spawnErrorRange);
+  let goal: WakePoint = rules.harbors[harborIndex] ?? { x: 0, y: 0 };
+  let exit: WakePoint | null = null;
+  if (type === 'smuggler') {
+    // Across the sea, a little to one side so its path misses the island.
+    const side = rng.float() < 0.5 ? -1 : 1;
+    const exitAngle =
+      angle +
+      Math.PI +
+      side * rng.range(rules.smuggler.exitOffsetMin, rules.smuggler.exitOffsetMax);
+    const reach = sea.spawnRadius + rules.smuggler.escapeMargin * 4;
+    exit = { x: Math.cos(exitAngle) * reach, y: Math.sin(exitAngle) * reach };
+    goal = exit;
+  }
   return {
     id,
     type,
     x,
     y,
-    heading:
-      Math.atan2(harbor.y - y, harbor.x - x) +
-      rng.range(-behavior.spawnHeadingJitter, behavior.spawnHeadingJitter),
+    heading: Math.atan2(goal.y - y, goal.x - x) + jitter,
     speed: rules.types[type].speed * speedMultiplier,
-    harbor: 0,
+    harbor: harborIndex,
     lit: false,
     darkTime: 0,
+    litTime: 0,
     lost: false,
-    error: rng.range(-behavior.spawnErrorRange, behavior.spawnErrorRange),
+    error,
     errorTarget: 0,
     errorTimer: behavior.spawnErrorDelay,
     rngState: rng.state,
+    exit,
+    hornTimer: 0,
+    towedBy: 0,
+    whirlpool: -1,
+    buoy: -1,
     wake: [],
     wakeTimer: 0,
   };
 }
 
-/** Heading a lit ship wants: toward the harbor, pushed sideways around any rock close ahead. */
-export function litHeading(
+/** Whirlpool cores, and the island for ships that aren't docking there. */
+const NO_OBSTACLES: readonly Obstacle[] = [];
+
+function extraObstacles(
   ship: Ship,
-  toHarbor: number,
-  rocks: readonly Rock[],
-  padding: number,
-  behavior: ShipBehaviorConfig,
-): number {
-  let dx = Math.cos(toHarbor);
-  let dy = Math.sin(toHarbor);
-  const hx = Math.cos(ship.heading);
-  const hy = Math.sin(ship.heading);
-  for (const rock of rocks) {
-    const vx = ship.x - rock.x;
-    const vy = ship.y - rock.y;
-    const d = Math.hypot(vx, vy);
-    const reach = rock.r + padding;
-    if (d >= reach || d <= 0.01) continue;
-    const ahead = -(vx * hx + vy * hy) / d;
-    if (ahead <= behavior.avoidAheadCos) continue;
-    const w = ((reach - d) / padding) * behavior.avoidStrength;
-    // Tangent around the rock, on the side the ship is already turning toward.
-    let tx = -vy / d;
-    let ty = vx / d;
-    if (tx * hx + ty * hy < 0) {
-      tx = -tx;
-      ty = -ty;
-    }
-    dx += (vx / d) * w + tx * w * behavior.avoidTangentFactor;
-    dy += (vy / d) * w + ty * w * behavior.avoidTangentFactor;
+  harbor: HarborDef,
+  rules: ShipRules,
+  sea: SeaForces,
+): readonly Obstacle[] {
+  const aroundIsland = isSmuggler(ship) || !atIsland(harbor, rules);
+  if (sea.whirlpools.length === 0 && !aroundIsland) return NO_OBSTACLES;
+  const list: Obstacle[] = sea.whirlpools.map((w) => ({
+    x: w.x,
+    y: w.y,
+    r: rules.whirlpool.coreRadius,
+    pad: rules.whirlpool.avoidPadding,
+  }));
+  if (aroundIsland) {
+    list.push({ x: 0, y: 0, r: rules.islandRadius, pad: rules.behavior.islandAvoidPadding });
   }
-  return Math.atan2(dy, dx);
+  return list;
 }
 
-/** Advances one ship by one tick and says whether it is still sailing, saved or wrecked. */
+/** Updates the dark ship's wandering heading error from its own random stream. */
+function wander(ship: Ship, behavior: ShipBehaviorConfig, dt: number): void {
+  ship.errorTimer -= dt;
+  if (ship.errorTimer <= 0) {
+    const rng = createRng(ship.rngState);
+    ship.errorTimer = rng.range(behavior.darkErrorRerollMin, behavior.darkErrorRerollMax);
+    ship.errorTarget = rng.range(-behavior.darkErrorRange, behavior.darkErrorRange);
+    ship.rngState = rng.state;
+  }
+  ship.error += (ship.errorTarget - ship.error) * dt * behavior.darkErrorEase;
+}
+
+/**
+ * Advances one ship by one tick and says whether it is still sailing, saved, wrecked, or (smugglers)
+ * caught or escaped. `light` says where the light on a point comes from, or null if it's dark.
+ */
 export function stepShip(
   ship: Ship,
   rocks: readonly Rock[],
-  lit: (x: number, y: number) => boolean,
+  light: (x: number, y: number) => LightOrigin | null,
   rules: ShipRules,
   dt: number,
   tick: number,
   emit: Emit,
+  sea: SeaForces = CALM_SEA,
 ): ShipFate {
-  const { behavior, sea } = rules;
+  const { behavior } = rules;
   const type = rules.types[ship.type];
-  const harbor = rules.harbors[ship.harbor] ?? { x: 0, y: 0, radius: sea.defaultHarborRadius };
+  const smuggler = isSmuggler(ship);
+  const harbor = rules.harbors[ship.harbor] ?? {
+    x: 0,
+    y: 0,
+    radius: rules.sea.defaultHarborRadius,
+  };
+  const goal = ship.exit ?? harbor;
+  const toGoal = Math.atan2(goal.y - ship.y, goal.x - ship.x);
+  const extra = extraObstacles(ship, harbor, rules, sea);
   const wasLit = ship.lit;
-  ship.lit = lit(ship.x, ship.y);
-  const toHarbor = Math.atan2(harbor.y - ship.y, harbor.x - ship.x);
+  const origin = light(ship.x, ship.y);
+  ship.lit = origin !== null;
 
   let desired: number;
   let turnRate: number;
   let speed: number;
-  if (ship.lit) {
+  if (origin) {
     if (!wasLit) emit({ type: 'shipLit', tick, shipId: ship.id });
     ship.darkTime = 0;
     ship.lost = false;
-    desired = litHeading(ship, toHarbor, rocks, type.avoidPadding, behavior);
-    turnRate = behavior.litTurnRate;
+    ship.litTime += dt;
+    if (smuggler && ship.litTime >= rules.smuggler.catchSeconds) return CAUGHT;
+    // A smuggler turns away from the light; every other ship heads for its harbor.
+    const aim = smuggler ? Math.atan2(ship.y - origin.y, ship.x - origin.x) : toGoal;
     speed = ship.speed;
+    desired = litHeading(ship, aim, rocks, type.avoidPadding, behavior, extra, speed);
+    turnRate = behavior.litTurnRate;
   } else {
+    ship.litTime = 0;
     ship.darkTime += dt;
     if (!ship.lost && ship.darkTime >= behavior.lostAfter) {
       ship.lost = true;
       emit({ type: 'shipLost', tick, shipId: ship.id });
     }
-    ship.errorTimer -= dt;
-    if (ship.errorTimer <= 0) {
-      const rng = createRng(ship.rngState);
-      ship.errorTimer = rng.range(behavior.darkErrorRerollMin, behavior.darkErrorRerollMax);
-      ship.errorTarget = rng.range(-behavior.darkErrorRange, behavior.darkErrorRange);
-      ship.rngState = rng.state;
-    }
-    ship.error += (ship.errorTarget - ship.error) * dt * behavior.darkErrorEase;
-    desired = toHarbor + ship.error;
-    turnRate = behavior.darkTurnRate;
+    wander(ship, behavior, dt);
     speed = ship.speed * behavior.darkSpeedFactor;
-    driftWithCurrent(ship, rules, dt);
+    desired = toGoal + ship.error;
+    // Smugglers know these waters: they slip around rocks even in the dark.
+    if (smuggler) {
+      desired = litHeading(ship, desired, rocks, type.avoidPadding, behavior, extra, speed);
+    }
+    turnRate = behavior.darkTurnRate;
   }
 
-  const maxTurn = turnRate * type.turnRateMultiplier * dt;
-  ship.heading = wrapAngle(
-    ship.heading + Math.max(-maxTurn, Math.min(maxTurn, wrapAngle(desired - ship.heading))),
-  );
+  ship.hornTimer = Math.max(0, ship.hornTimer - dt);
+  if (ship.hornTimer > 0) speed *= rules.foghornSpeedFactor;
+  if (ship.towedBy !== 0) speed *= rules.tug.speedFactor;
+  // Lit ships lean into the storm waves so they still go where they mean to.
+  if (ship.lit) desired = leanIntoPush(desired, speed, sea.pushX, sea.pushY);
+
+  driftWithSea(ship, type, rules, sea, tick, emit, dt);
+  ship.heading = turnToward(ship.heading, desired, turnRate * type.turnRateMultiplier * dt);
   ship.x += Math.cos(ship.heading) * speed * dt;
   ship.y += Math.sin(ship.heading) * speed * dt;
+  keepOffIsland(ship, harbor, smuggler, rules);
 
   ship.wakeTimer -= dt;
   if (ship.wakeTimer <= 0) {
@@ -190,18 +274,22 @@ export function stepShip(
     if (ship.wake.length > behavior.wakeLength) ship.wake.shift();
   }
 
-  const rock = rockAt(rocks, ship.x, ship.y, type.width * behavior.hullCollisionFactor);
-  if (rock) return { kind: 'wrecked', rock };
-  if (Math.hypot(ship.x - harbor.x, ship.y - harbor.y) < harbor.radius) return { kind: 'saved' };
+  // Smugglers never wreck and never dock; they're caught or slip away.
+  if (smuggler) {
+    const out = rules.sea.spawnRadius + rules.smuggler.escapeMargin;
+    return Math.hypot(ship.x, ship.y) > out ? ESCAPED : SAILING;
+  }
+  for (const w of sea.whirlpools) {
+    if (Math.hypot(ship.x - w.x, ship.y - w.y) < rules.whirlpool.coreRadius) {
+      return { kind: 'wrecked', cause: 'whirlpool', reefIndex: null };
+    }
+  }
+  const hull = type.width * behavior.hullCollisionFactor;
+  const rock = rockAt(rocks, ship.x, ship.y, hull);
+  if (rock && !(rock.kind === 'iceberg' && shovedByIceberg(ship, rock, hull, rules))) {
+    const cause = rock.kind === 'iceberg' ? 'iceberg' : 'reef';
+    return { kind: 'wrecked', cause, reefIndex: rock.reef };
+  }
+  if (Math.hypot(ship.x - harbor.x, ship.y - harbor.y) < harbor.radius) return SAVED;
   return SAILING;
-}
-
-/** The current pushes dark ships, but never further out than the spawn ring, so none drift away forever. */
-function driftWithCurrent(ship: Ship, rules: ShipRules, dt: number): void {
-  const nx = ship.x + rules.currentX * dt;
-  const ny = ship.y + rules.currentY * dt;
-  const next = Math.hypot(nx, ny);
-  if (next > rules.sea.spawnRadius && next > Math.hypot(ship.x, ship.y)) return;
-  ship.x = nx;
-  ship.y = ny;
 }

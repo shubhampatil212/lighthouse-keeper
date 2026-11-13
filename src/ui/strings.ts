@@ -38,4 +38,14 @@ export const STRINGS = {
   bonusDone: 'done',
   bonusMissed: 'missed',
   playAgain: 'Play again',
+  hudCaught: (n: number) => `${plural(n, 'smuggler', 'smugglers')} caught`,
+
+  // Temporary ability buttons (phase 04; the real HUD arrives in phase 05).
+  abilityFoghorn: 'Horn',
+  abilityFlare: 'Flare',
+  abilitySwitchLamp: 'Switch lamp',
+  abilityFoghornLabel: (seconds: number) =>
+    seconds > 0 ? `Foghorn, ready in ${Math.ceil(seconds)} seconds` : 'Foghorn, ready',
+  abilityFlareLabel: (charges: number) => `Flare, ${plural(charges, 'charge', 'charges')} left`,
+  abilitySwitchLampLabel: 'Switch which lighthouse you steer',
 } as const;

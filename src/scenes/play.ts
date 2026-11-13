@@ -8,7 +8,6 @@ import type { Viewport } from '../app/viewport';
 import {
   CONTROLS,
   ISLAND_BUILDINGS,
-  LEVEL_1_2,
   NO_UPGRADES,
   PLAY,
   REGIONS,
@@ -21,9 +20,14 @@ import type {
   LevelDef,
   QualityProfile,
   RegionId,
+  Upgrades,
   WeatherDef,
 } from '../data/types';
-import { createInputController, type InputController } from '../input/controller';
+import {
+  createInputController,
+  type ActionIntent,
+  type InputController,
+} from '../input/controller';
 import type { ArtProvider } from '../render/art/types';
 import { createSafeRing, drawSafeRing } from '../render/debug/safeRing';
 import type { Layers } from '../render/layers';
@@ -33,6 +37,12 @@ import type { DebugPanel, DebugSettings } from '../ui/debugPanel';
 import { createPlaytestUi } from '../ui/playtest';
 
 export interface PlaySceneOptions {
+  /** The night to play. */
+  level: LevelDef;
+  /** Upgrades the keeper brings (the shop arrives in phase 05; the sandbox sets them by hand). */
+  upgrades?: Upgrades;
+  /** The night never ends on its own (the sandbox). */
+  endless?: boolean;
   layers: Layers;
   pixi: PixiRenderer;
   art: ArtProvider;
@@ -56,8 +66,18 @@ export interface PlayScene extends Scene {
   setQuality(profile: QualityProfile): void;
   /** Starts the night again, with the same seed or a new one. */
   restart(newSeed: boolean): void;
+  /** The night being played (the sandbox adds ships and hazards to it). */
+  readonly world: World;
+  /** Plays a different level or upgrades from the start (the sandbox). */
+  load(level: LevelDef, upgrades: Upgrades): void;
+  /** Simulation steps per real step: 0.25 = slow motion, 4 = fast forward (the sandbox). */
+  timeScale: number;
+  /** An on-screen ability button was pressed. */
+  press(action: ActionIntent): void;
   attachDebugPanel(panel: DebugPanel): void;
 }
+
+const NO_ACTIONS = { foghorn: false, flare: false, switchLamp: false };
 
 /** A fresh seed for a new attempt. Randomness is fine here: the simulation only ever sees the seed. */
 const randomSeed = (): number => Math.floor(Math.random() * 0x100000000);
@@ -74,17 +94,25 @@ function weatherFor(level: LevelDef, settings: DebugSettings): WeatherDef {
 
 export function createPlayScene(options: PlaySceneOptions): PlayScene {
   const { layers } = options;
-  const level: LevelDef = LEVEL_1_2;
+  let level: LevelDef = options.level;
+  let upgrades: Upgrades = options.upgrades ?? NO_UPGRADES;
+  const worldOptions = { endless: options.endless ?? false };
   const safeRing = options.showSafeRing ? createSafeRing() : null;
-  const ui = createPlaytestUi(options.uiRoot, () => {
-    restart(true);
-  });
+  const ui = createPlaytestUi(
+    options.uiRoot,
+    () => {
+      restart(true);
+    },
+    (action) => {
+      input?.press(action);
+    },
+  );
   ui.setLevel(level);
 
   let settings: DebugSettings = options.settings;
   let quality = options.quality;
   let seed = options.seed ?? randomSeed();
-  let world: World = createWorld(level, settings.difficulty, NO_UPGRADES, seed);
+  let world: World = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
   let view: NightRenderer | null = null;
   let input: InputController | null = null;
   let debugPanel: DebugPanel | null = null;
@@ -92,6 +120,18 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
   let paused = false;
   let endCardIn: number | null = null;
   let lastFrame: number | null = null;
+  let timeScale = 1;
+  let stepDebt = 0;
+  let held = { ...NO_ACTIONS };
+
+  /** Where the lamp the player steers stands on screen: the pointer aims around it. */
+  const aimCenter = (): { centerX: number; centerY: number } => {
+    const vp = options.viewport();
+    const lamp = world.state.activeLamp === 1 ? world.state.lamp2 : null;
+    return lamp
+      ? { centerX: vp.centerX + lamp.x * vp.scale, centerY: vp.centerY + lamp.y * vp.scale }
+      : vp;
+  };
 
   const applyLook = (): void => {
     if (!view) return;
@@ -100,11 +140,12 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     view.setBuildings(settings.allBuildings ? ISLAND_BUILDINGS : options.buildings);
     view.setParade(settings.parade);
     view.setRevealAll(settings.revealAll);
+    view.setColorblind(settings.colorblind);
   };
 
   function restart(newSeed: boolean): void {
     if (newSeed) seed = randomSeed();
-    world = createWorld(level, settings.difficulty, NO_UPGRADES, seed);
+    world = createWorld(level, settings.difficulty, upgrades, seed, worldOptions);
     paused = false;
     endCardIn = null;
     ui.hideEnd();
@@ -127,6 +168,25 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       view?.setQuality(profile);
     },
     restart,
+    get world() {
+      return world;
+    },
+    load(nextLevel, nextUpgrades) {
+      level = nextLevel;
+      upgrades = nextUpgrades;
+      ui.setLevel(level);
+      applyLook();
+      restart(false);
+    },
+    get timeScale() {
+      return timeScale;
+    },
+    set timeScale(scale) {
+      timeScale = Math.max(0, scale);
+    },
+    press(action) {
+      input?.press(action);
+    },
     attachDebugPanel(panel) {
       debugPanel = panel;
       panel.setSettings(settings);
@@ -139,7 +199,7 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       applyLook();
       restart(false);
       if (safeRing) layers.effects.addChild(safeRing);
-      input = createInputController(options.canvas, window, options.viewport, CONTROLS);
+      input = createInputController(options.canvas, window, aimCenter, CONTROLS);
       input.style = settings.style;
     },
     exit() {
@@ -151,15 +211,31 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
     },
     update(dt) {
       if (!input) return;
-      const intents = input.read(world.state.beam);
+      const { state } = world;
+      const read = input.read(state.activeLamp === 1 && state.lamp2 ? state.lamp2 : state.beam);
+      // In slow motion a tick may pass with no step: keep button presses until a step uses them.
+      const intents = {
+        ...read,
+        foghorn: read.foghorn || held.foghorn,
+        flare: read.flare || held.flare,
+        switchLamp: read.switchLamp || held.switchLamp,
+      };
       if (intents.pause && (paused || world.state.status === 'playing')) paused = !paused;
       if (paused) return;
 
-      view?.capture(world);
-      world.step(dt, intents);
-      for (const event of world.drainEvents()) {
-        view?.onEvent(event, world);
-        if (event.type === 'levelEnded') endCardIn = PLAY.endCardDelay;
+      // Slow motion and fast forward (sandbox): run 0..n fixed steps for each real one.
+      stepDebt += timeScale;
+      held = stepDebt >= 1 ? { ...NO_ACTIONS } : intents;
+      let first = true;
+      while (stepDebt >= 1) {
+        stepDebt -= 1;
+        view?.capture(world);
+        world.step(dt, first ? intents : { ...intents, ...NO_ACTIONS });
+        first = false;
+        for (const event of world.drainEvents()) {
+          view?.onEvent(event, world);
+          if (event.type === 'levelEnded') endCardIn = PLAY.endCardDelay;
+        }
       }
       if (endCardIn !== null) {
         endCardIn -= dt;
@@ -175,10 +251,15 @@ export function createPlayScene(options: PlaySceneOptions): PlayScene {
       lastFrame = now;
       view?.draw(world, paused ? 1 : alpha, paused ? 0 : frameSeconds);
       const { state, setup } = world;
+      const { upgrades: owned } = setup;
       ui.showHud({
         saved: state.saved,
         spareHulls: Math.max(0, setup.difficulty.wreckAllowance - state.wrecked),
+        caught: state.caught,
         paused,
+        foghorn: owned.foghorn > 0 ? { cooldown: state.abilities.foghornCooldown } : null,
+        flares: owned.flares > 0 ? state.abilities.flares : null,
+        switchLamp: state.lamp2 !== null,
       });
       if (debugPanel?.open) debugPanel.showWorld(world, paused);
     },
